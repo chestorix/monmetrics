@@ -24,52 +24,45 @@ func (m *MemStorage) UpdateCounter(name string, value Counter) {
 	m.counters[name] += value
 
 }
-func (m *MemStorage) updateGaugeHandler(w http.ResponseWriter, r *http.Request) {
+
+func (m *MemStorage) updateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 5 || parts[2] != "gauge" {
+	if len(parts) != 5 {
 		http.Error(w, "Invalid request", http.StatusNotFound)
 		return
 	}
 
-	metricName, metricValue := parts[3], parts[4]
-	value, err := strconv.ParseFloat(metricValue, 64)
-	if err != nil {
-		http.Error(w, "Invalid value for gauge", http.StatusBadRequest)
-		return
+	metricType, metricName, metricValue := parts[2], parts[3], parts[4]
+
+	switch metricType {
+	case "gauge":
+		value, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			http.Error(w, "Invalid value for gauge", http.StatusBadRequest)
+			return
+		}
+		m.UpdateGauge(metricName, Gauge(value))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Gauge metric updated")
+
+	case "counter":
+		value, err := strconv.ParseInt(metricValue, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid value for counter", http.StatusBadRequest)
+			return
+		}
+		m.UpdateCounter(metricName, Counter(value))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Counter metric updated")
+
+	default:
+		http.Error(w, "Invalid metric type", http.StatusNotFound)
 	}
-	m.UpdateGauge(metricName, Gauge(value))
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Gauge metric updated")
-}
-func (m *MemStorage) updateCounterHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 5 || parts[2] != "counter" {
-		http.Error(w, "Invalid request", http.StatusNotFound)
-		return
-	}
-
-	metricName, metricValue := parts[3], parts[4]
-	value, err := strconv.ParseInt(metricValue, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid value for counter", http.StatusBadRequest)
-		return
-	}
-
-	m.UpdateCounter(metricName, Counter(value))
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Counter metric updated")
 }
 
 func main() {
@@ -78,8 +71,7 @@ func main() {
 		counters: make(map[string]Counter),
 	}
 
-	http.HandleFunc("/update/gauge/", storage.updateGaugeHandler)
-	http.HandleFunc("/update/counter/", storage.updateCounterHandler)
+	http.HandleFunc("/update/", storage.updateHandler)
 
 	fmt.Println("Server is listening on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
