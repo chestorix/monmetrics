@@ -33,7 +33,7 @@ func (m *MemStorage) updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) != 5 {
-		http.Error(w, "Invalid request", http.StatusNotFound)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (m *MemStorage) updateHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Counter metric updated")
 
 	default:
-		http.Error(w, "Invalid metric type", http.StatusNotFound)
+		http.Error(w, "Invalid metric type", http.StatusBadRequest)
 	}
 }
 
