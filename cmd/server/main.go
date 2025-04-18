@@ -1,92 +1,21 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"strconv"
-	"strings"
+	"github.com/chestorix/monmetrics/internal/config"
+	"github.com/chestorix/monmetrics/internal/server"
+	"github.com/chestorix/monmetrics/internal/storage/memory"
 )
 
-type Gauge float64
-type Counter int64
-
-type MemStorage struct {
-	gauges   map[string]Gauge
-	counters map[string]Counter
-}
-
-func (m *MemStorage) UpdateGauge(name string, value Gauge) {
-	m.gauges[name] = value
-
-}
-func (m *MemStorage) UpdateCounter(name string, value Counter) {
-	m.counters[name] += value
-
-}
-
-func (m *MemStorage) updateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	path := strings.Trim(r.URL.Path, "/")
-	parts := strings.Split(path, "/")
-
-	if len(parts) < 2 {
-		http.Error(w, "Invalid request", http.StatusNotFound)
-		return
-	}
-
-	if len(parts) == 2 {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-
-	metricType := parts[1]
-
-	if len(parts) < 4 {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-
-	metricName, metricValue := parts[2], parts[3]
-
-	switch metricType {
-	case "gauge":
-		value, err := strconv.ParseFloat(metricValue, 64)
-		if err != nil {
-			http.Error(w, "Invalid value for gauge", http.StatusBadRequest)
-			return
-		}
-		m.UpdateGauge(metricName, Gauge(value))
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Gauge metric updated")
-
-	case "counter":
-		value, err := strconv.ParseInt(metricValue, 10, 64)
-		if err != nil {
-			http.Error(w, "Invalid value for counter", http.StatusBadRequest)
-			return
-		}
-		m.UpdateCounter(metricName, Counter(value))
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Counter metric updated")
-
-	default:
-		http.Error(w, "Invalid metric type", http.StatusBadRequest)
-	}
-}
-
 func main() {
-	storage := &MemStorage{
-		gauges:   make(map[string]Gauge),
-		counters: make(map[string]Counter),
+	cfg := config.ServerConfig{
+		Address: ":8080",
 	}
 
-	http.HandleFunc("/update/", storage.updateHandler)
+	storage := memory.NewMemStorage()
+	srv := server.New(&cfg, storage)
 
-	fmt.Println("Server is listening on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	if err := srv.Start(); err != nil {
+		panic(err)
+	}
+
 }
