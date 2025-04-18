@@ -31,13 +31,27 @@ func (m *MemStorage) updateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 5 {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+	path := strings.Trim(r.URL.Path, "/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) < 2 {
+		http.Error(w, "Invalid request", http.StatusNotFound)
 		return
 	}
 
-	metricType, metricName, metricValue := parts[2], parts[3], parts[4]
+	if len(parts) == 2 {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	metricType := parts[1]
+
+	if len(parts) < 4 {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	metricName, metricValue := parts[2], parts[3]
 
 	switch metricType {
 	case "gauge":
