@@ -11,7 +11,7 @@ import (
 func main() {
 	parseFlags()
 	cfg := config.AgentConfig{
-		Address:        "http" + flagRunAddr,
+		Address:        "http://" + flagRunAddr,
 		PollInterval:   time.Duration(flagPollInterval) * time.Second,
 		ReportInterval: time.Duration(flagReportInterval) * time.Second,
 	}
