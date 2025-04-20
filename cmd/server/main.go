@@ -1,15 +1,29 @@
 package main
 
 import (
+	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/server"
 	"github.com/chestorix/monmetrics/internal/storage/memory"
+	"log"
 )
+
+type cfg struct {
+	Address string `env:"ADDRESS"`
+}
 
 func main() {
 	parseFlags()
+	var conf cfg
+	if err := env.Parse(&conf); err != nil {
+		log.Fatal("Failed to parse env vars:", err)
+	}
+	serverAddress := conf.Address
+	if serverAddress == "" {
+		serverAddress = flagRunAddr
+	}
 	cfg := config.ServerConfig{
-		Address: flagRunAddr,
+		Address: serverAddress,
 	}
 
 	storage := memory.NewMemStorage()
