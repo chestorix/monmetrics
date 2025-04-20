@@ -69,7 +69,6 @@ func main() {
 			if lastMetrics == nil {
 				continue
 			}
-			//	metrics := collector.Collect()
 			for _, metric := range lastMetrics {
 				if err := sender.Send(metric); err != nil {
 					log.Println(err)
