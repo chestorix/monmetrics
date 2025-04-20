@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
+	parseFlags()
 	cfg := config.AgentConfig{
-		Address:        "http://localhost:8080",
-		PollInterval:   2 * time.Second,
-		ReportInterval: 10 * time.Second,
+		Address:        "http://localhost" + flagRunAddr,
+		PollInterval:   time.Duration(flagPollInterval) * time.Second,
+		ReportInterval: time.Duration(flagReportInterval) * time.Second,
 	}
 
 	collector := collector.NewRuntimeCollector()

@@ -7,8 +7,9 @@ import (
 )
 
 func main() {
+	parseFlags()
 	cfg := config.ServerConfig{
-		Address: ":8080",
+		Address: flagRunAddr,
 	}
 
 	storage := memory.NewMemStorage()
