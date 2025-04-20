@@ -69,4 +69,108 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Invalid metric type", http.StatusBadRequest)
 	}
+
+}
+
+func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	path := strings.Trim(r.URL.Path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		http.Error(w, "Invalid request", http.StatusNotFound)
+		return
+	}
+
+	if len(parts) == 2 {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	metricType := parts[1]
+	metricName := parts[2]
+	switch metricType {
+	case "gauge":
+		value, exists := h.repo.GetGauge(metricName)
+		if !exists {
+			http.Error(w, "Metric not found", http.StatusNotFound)
+			return
+		}
+		strValue := fmt.Sprintf("%v", value)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(strValue))
+
+	case "counter":
+		value, exists := h.repo.GetCounter(metricName)
+		if !exists {
+			http.Error(w, "Metric not found", http.StatusNotFound)
+			return
+		}
+		strValue := fmt.Sprintf("%v", value)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(strValue))
+
+	default:
+		http.Error(w, "Invalid metric type", http.StatusBadRequest)
+	}
+}
+
+func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	metrics, err := h.repo.GetAllMetrics()
+	if err != nil {
+		http.Error(w, "Failed to get metrics", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	html := `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Metrics</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #333; }
+            table { border-collapse: collapse; width: 100%; max-width: 800px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+        </style>
+    </head>
+    <body>
+        <h1>Metrics</h1>
+        <table>
+            <tr>
+                <th>Type</th>
+                <th>Name</th>
+                <th>Value</th>
+            </tr>
+    `
+
+	for _, metric := range metrics {
+		html += fmt.Sprintf(`
+            <tr>
+                <td>%s</td>
+                <td>%s</td>
+                <td>%v</td>
+            </tr>
+        `, metric.Type, metric.Name, metric.Value)
+	}
+
+	html += `
+        </table>
+    </body>
+    </html>
+    `
+	w.Write([]byte(html))
 }

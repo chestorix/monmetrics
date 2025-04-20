@@ -26,7 +26,8 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/update/", handler.UpdateHandler)
-
+	mux.HandleFunc("/value/", handler.GetValuesHandler)
+	mux.HandleFunc("/", handler.GetAllMetricsHandler)
 	s.server = &http.Server{
 		Addr:    s.cfg.Address,
 		Handler: mux,

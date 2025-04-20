@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"github.com/chestorix/monmetrics/internal/models"
 	"github.com/chestorix/monmetrics/internal/storage/interfaces"
 	"log"
 )
@@ -27,55 +28,38 @@ func (m *MemStorage) UpdateCounter(name string, value int64) {
 
 }
 
-/*func (m *MemStorage) UpdateHandler(w http.ResponseWriter, r *http.Request) {
-if r.Method != http.MethodPost {
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	return
-}
-
-path := strings.Trim(r.URL.Path, "/")
-parts := strings.Split(path, "/")
-
-if len(parts) < 2 {
-	http.Error(w, "Invalid request", http.StatusNotFound)
-	return
-}
-
-if len(parts) == 2 {
-	http.Error(w, "Not found", http.StatusNotFound)
-	return
-}
-
-metricType := parts[1]
-
-if len(parts) < 4 {
-	http.Error(w, "Not found", http.StatusNotFound)
-	return
-}
-
-metricName, metricValue := parts[2], parts[3]
-
-switch metricType {
-case "gauge":
-	value, err := strconv.ParseFloat(metricValue, 64)
-	if err != nil {
-		http.Error(w, "Invalid value for gauge", http.StatusBadRequest)
-		return
+func (m *MemStorage) GetGauge(name string) (float64, bool) {
+	if value, ok := m.Gauges[name]; ok {
+		return value, true
 	}
-	m.UpdateGauge(metricName, value)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Gauge metric updated")
+	return 0, false
+}
 
-case "counter":
-	value, err := strconv.ParseInt(metricValue, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid value for counter", http.StatusBadRequest)
-		return
+func (m *MemStorage) GetCounter(name string) (int64, bool) {
+	if value, ok := m.Counters[name]; ok {
+		return value, true
 	}
-	m.UpdateCounter(metricName, value)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Counter metric updated")
+	return 0, false
+}
 
-default:
-	http.Error(w, "Invalid metric type", http.StatusBadRequest)
-}*/
+func (m *MemStorage) GetAllMetrics() ([]models.Metric, error) {
+	var metrics []models.Metric
+
+	for name, value := range m.Gauges {
+		metrics = append(metrics, models.Metric{
+			Name:  name,
+			Type:  "gauge",
+			Value: value,
+		})
+	}
+
+	for name, value := range m.Counters {
+		metrics = append(metrics, models.Metric{
+			Name:  name,
+			Type:  "counter",
+			Value: value,
+		})
+	}
+
+	return metrics, nil
+}
