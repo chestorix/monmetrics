@@ -6,6 +6,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/server"
 	"github.com/chestorix/monmetrics/internal/storage/memory"
 	"log"
+	"strings"
 )
 
 type cfg struct {
@@ -21,6 +22,9 @@ func main() {
 	serverAddress := conf.Address
 	if serverAddress == "" {
 		serverAddress = flagRunAddr
+	}
+	if !strings.Contains(serverAddress, ":") {
+		serverAddress = ":" + serverAddress
 	}
 	cfg := config.ServerConfig{
 		Address: serverAddress,

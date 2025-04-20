@@ -7,6 +7,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/models"
 	"github.com/chestorix/monmetrics/internal/sender"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,13 @@ type cfg struct {
 	Address        string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
+}
+
+func ensureHTTP(address string) string {
+	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
+		return "http://" + address
+	}
+	return address
 }
 
 func main() {
@@ -24,9 +32,9 @@ func main() {
 	}
 	address := cfg.Address
 	if address == "" {
-		address = "http://" + flagRunAddr
+		address = flagRunAddr
 	}
-
+	address = ensureHTTP(address)
 	reportInterval := cfg.ReportInterval
 	if reportInterval == 0 {
 		reportInterval = flagReportInterval
