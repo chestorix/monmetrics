@@ -39,7 +39,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	case models.Gauge:
 		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			http.Error(w, "Invalid value for gauge", http.StatusBadRequest)
+			http.Error(w, "invalid value for gauge", http.StatusBadRequest)
 			return
 		}
 		if err := h.service.UpdateGauge(metricName, value); err != nil {
@@ -52,7 +52,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	case models.Counter:
 		value, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			http.Error(w, "Invalid value for counter", http.StatusBadRequest)
+			http.Error(w, "invalid value for counter", http.StatusBadRequest)
 			return
 		}
 		if err := h.service.UpdateCounter(metricName, value); err != nil {

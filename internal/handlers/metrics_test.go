@@ -107,7 +107,7 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 			url:  "/update/invalid/somemetrics/123",
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "Invalid metric type\n",
+				response:    "invalid metric type\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -116,7 +116,7 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 			url:  "/update/gauge/somemetrics/invalid",
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "Invalid value for gauge\n",
+				response:    "invalid value for gauge\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -176,7 +176,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			prepare: func(service *MockMetricsService) {},
 			want: want{
 				code:        http.StatusNotFound,
-				response:    "Metric not found\n",
+				response:    "metric not found\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -197,7 +197,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			url:  "/value/invalid/test",
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "Invalid metric type\n",
+				response:    "invalid metric type\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
