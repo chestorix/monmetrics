@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// MockMetricsRepository расширяем для теста GetAllMetrics
 type MockMetricsRepository struct {
 	gaugeValues   map[string]float64
 	counterValues map[string]int64
@@ -169,7 +168,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			name: "get non-existing gauge",
 			url:  "/value/gauge/non_existing",
 			prepare: func(repo *MockMetricsRepository) {
-				// Ничего не добавляем
+
 			},
 			want: want{
 				code:        http.StatusNotFound,
