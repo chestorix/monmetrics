@@ -11,38 +11,46 @@ import (
 	"testing"
 )
 
-type MockMetricsRepository struct {
+type MockMetricsService struct {
 	gaugeValues   map[string]float64
 	counterValues map[string]int64
 	getAllError   bool
 }
 
-func NewMockMetricsRepository() *MockMetricsRepository {
-	return &MockMetricsRepository{
+func NewMockMetricsService() *MockMetricsService {
+	return &MockMetricsService{
 		gaugeValues:   make(map[string]float64),
 		counterValues: make(map[string]int64),
 	}
 }
 
-func (m *MockMetricsRepository) UpdateGauge(name string, value float64) {
+func (m *MockMetricsService) UpdateGauge(name string, value float64) error {
 	m.gaugeValues[name] = value
+	return nil
 }
 
-func (m *MockMetricsRepository) UpdateCounter(name string, value int64) {
+func (m *MockMetricsService) UpdateCounter(name string, value int64) error {
 	m.counterValues[name] += value
+	return nil
 }
 
-func (m *MockMetricsRepository) GetGauge(name string) (float64, bool) {
+func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 	val, ok := m.gaugeValues[name]
-	return val, ok
+	if !ok {
+		return 0, models.ErrMetricNotFound
+	}
+	return val, nil
 }
 
-func (m *MockMetricsRepository) GetCounter(name string) (int64, bool) {
+func (m *MockMetricsService) GetCounter(name string) (int64, error) {
 	val, ok := m.counterValues[name]
-	return val, ok
+	if !ok {
+		return 0, models.ErrMetricNotFound
+	}
+	return val, nil
 }
 
-func (m *MockMetricsRepository) GetAllMetrics() ([]models.Metric, error) {
+func (m *MockMetricsService) GetAllMetrics() ([]models.Metric, error) {
 	if m.getAllError {
 		return nil, errors.New("mock error")
 	}
@@ -51,14 +59,14 @@ func (m *MockMetricsRepository) GetAllMetrics() ([]models.Metric, error) {
 	for name, value := range m.gaugeValues {
 		metrics = append(metrics, models.Metric{
 			Name:  name,
-			Type:  "gauge",
+			Type:  models.Gauge,
 			Value: value,
 		})
 	}
 	for name, value := range m.counterValues {
 		metrics = append(metrics, models.Metric{
 			Name:  name,
-			Type:  "counter",
+			Type:  models.Counter,
 			Value: value,
 		})
 	}
@@ -116,8 +124,8 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockRepo := NewMockMetricsRepository()
-			handler := NewMetricsHandler(mockRepo)
+			mockService := NewMockMetricsService()
+			handler := NewMetricsHandler(mockService)
 
 			request := httptest.NewRequest(http.MethodPost, test.url, nil)
 			w := httptest.NewRecorder()
@@ -145,18 +153,16 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 		contentType string
 	}
 	tests := []struct {
-		name        string
-		url         string
-		prepare     func(repo *MockMetricsRepository)
-		want        want
-		wantGauge   float64
-		wantCounter int64
+		name    string
+		url     string
+		prepare func(service *MockMetricsService)
+		want    want
 	}{
 		{
 			name: "get existing gauge",
 			url:  "/value/gauge/test_gauge",
-			prepare: func(repo *MockMetricsRepository) {
-				repo.UpdateGauge("test_gauge", 123.45)
+			prepare: func(service *MockMetricsService) {
+				service.UpdateGauge("test_gauge", 123.45)
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -165,11 +171,9 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "get non-existing gauge",
-			url:  "/value/gauge/non_existing",
-			prepare: func(repo *MockMetricsRepository) {
-
-			},
+			name:    "get non-existing gauge",
+			url:     "/value/gauge/non_existing",
+			prepare: func(service *MockMetricsService) {},
 			want: want{
 				code:        http.StatusNotFound,
 				response:    "Metric not found\n",
@@ -179,8 +183,8 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 		{
 			name: "get existing counter",
 			url:  "/value/counter/test_counter",
-			prepare: func(repo *MockMetricsRepository) {
-				repo.UpdateCounter("test_counter", 42)
+			prepare: func(service *MockMetricsService) {
+				service.UpdateCounter("test_counter", 42)
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -201,11 +205,11 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockRepo := NewMockMetricsRepository()
+			mockService := NewMockMetricsService()
 			if test.prepare != nil {
-				test.prepare(mockRepo)
+				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockRepo)
+			handler := NewMetricsHandler(mockService)
 
 			request := httptest.NewRequest(http.MethodGet, test.url, nil)
 			w := httptest.NewRecorder()
@@ -229,17 +233,16 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 	tests := []struct {
 		name       string
-		prepare    func(repo *MockMetricsRepository)
+		prepare    func(service *MockMetricsService)
 		wantCode   int
 		wantBody   string
 		wantInBody []string
-		wantError  bool
 	}{
 		{
 			name: "success with metrics",
-			prepare: func(repo *MockMetricsRepository) {
-				repo.UpdateGauge("alloc", 123.45)
-				repo.UpdateCounter("requests", 42)
+			prepare: func(service *MockMetricsService) {
+				service.UpdateGauge("alloc", 123.45)
+				service.UpdateCounter("requests", 42)
 			},
 			wantCode: http.StatusOK,
 			wantInBody: []string{
@@ -253,7 +256,7 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 		},
 		{
 			name:     "empty metrics",
-			prepare:  func(repo *MockMetricsRepository) {},
+			prepare:  func(service *MockMetricsService) {},
 			wantCode: http.StatusOK,
 			wantInBody: []string{
 				"<h1>Metrics</h1>",
@@ -262,9 +265,9 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "repository error",
-			prepare: func(repo *MockMetricsRepository) {
-				repo.getAllError = true
+			name: "service error",
+			prepare: func(service *MockMetricsService) {
+				service.getAllError = true
 			},
 			wantCode: http.StatusInternalServerError,
 			wantBody: "Failed to get metrics\n",
@@ -273,11 +276,11 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockRepo := NewMockMetricsRepository()
+			mockService := NewMockMetricsService()
 			if test.prepare != nil {
-				test.prepare(mockRepo)
+				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockRepo)
+			handler := NewMetricsHandler(mockService)
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
