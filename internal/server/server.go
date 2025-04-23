@@ -4,27 +4,30 @@ import (
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/handlers"
+	"github.com/chestorix/monmetrics/internal/service"
 	"github.com/chestorix/monmetrics/internal/storage/interfaces"
 	"github.com/go-chi/chi/v5"
 	"net/http"
 )
 
 type Server struct {
-	cfg    *config.ServerConfig
-	repo   interfaces.MetricsRepository
-	server *http.Server
-	router *chi.Mux
+	cfg     *config.ServerConfig
+	service service.MetricsService
+	server  *http.Server
+	router  *chi.Mux
 }
 
 func New(cfg *config.ServerConfig, repo interfaces.MetricsRepository) *Server {
+	metricsService := service.NewMetricsService(repo)
 	return &Server{
-		cfg:    cfg,
-		repo:   repo,
-		router: chi.NewRouter(),
+		cfg:     cfg,
+		service: metricsService,
+		router:  chi.NewRouter(),
 	}
 }
 
-func (s *Server) setupRoutes(handler *handlers.MetricsHandler) {
+func (s *Server) setupRoutes() {
+	handler := handlers.NewMetricsHandler(s.service)
 	s.router.Route("/", func(r chi.Router) {
 		r.Get("/", handler.GetAllMetricsHandler)
 
@@ -39,8 +42,7 @@ func (s *Server) setupRoutes(handler *handlers.MetricsHandler) {
 }
 
 func (s *Server) Start() error {
-	handler := handlers.NewMetricsHandler(s.repo)
-	s.setupRoutes(handler)
+	s.setupRoutes()
 
 	s.server = &http.Server{
 		Addr:    s.cfg.Address,

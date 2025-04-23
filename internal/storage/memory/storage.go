@@ -48,7 +48,7 @@ func (m *MemStorage) GetAllMetrics() ([]models.Metric, error) {
 	for name, value := range m.Gauges {
 		metrics = append(metrics, models.Metric{
 			Name:  name,
-			Type:  "gauge",
+			Type:  models.Gauge,
 			Value: value,
 		})
 	}
@@ -56,7 +56,7 @@ func (m *MemStorage) GetAllMetrics() ([]models.Metric, error) {
 	for name, value := range m.Counters {
 		metrics = append(metrics, models.Metric{
 			Name:  name,
-			Type:  "counter",
+			Type:  models.Counter,
 			Value: value,
 		})
 	}
