@@ -2,9 +2,11 @@ package main
 
 import (
 	"github.com/caarlos0/env/v11"
+	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
-	"github.com/chestorix/monmetrics/internal/server"
-	"github.com/chestorix/monmetrics/internal/storage/memory"
+	"github.com/chestorix/monmetrics/internal/metrics/repository"
+	"github.com/chestorix/monmetrics/internal/metrics/service"
+	"github.com/sirupsen/logrus"
 	"log"
 	"strings"
 )
@@ -14,6 +16,9 @@ type cfg struct {
 }
 
 func main() {
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	logger.SetLevel(logrus.InfoLevel)
 	parseFlags()
 	var conf cfg
 	if err := env.Parse(&conf); err != nil {
@@ -29,11 +34,10 @@ func main() {
 	cfg := config.ServerConfig{
 		Address: serverAddress,
 	}
-
-	storage := memory.NewMemStorage()
-	srv := server.New(&cfg, storage)
-
-	if err := srv.Start(); err != nil {
+	storage := repository.NewMemStorage()
+	metricService := service.NewService(storage)
+	server := api.NewServer(&cfg, metricService, logger)
+	if err := server.Start(); err != nil {
 		panic(err)
 	}
 

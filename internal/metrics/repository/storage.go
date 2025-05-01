@@ -1,9 +1,8 @@
-package memory
+package repository
 
 import (
-	"github.com/chestorix/monmetrics/internal/models"
-	"github.com/chestorix/monmetrics/internal/storage/interfaces"
-	"log"
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
+	"github.com/chestorix/monmetrics/internal/metrics"
 )
 
 type MemStorage struct {
@@ -11,7 +10,7 @@ type MemStorage struct {
 	Counters map[string]int64
 }
 
-func NewMemStorage() interfaces.MetricsRepository {
+func NewMemStorage() interfaces.Repository {
 	return &MemStorage{
 		Gauges:   make(map[string]float64),
 		Counters: make(map[string]int64),
@@ -19,12 +18,10 @@ func NewMemStorage() interfaces.MetricsRepository {
 }
 func (m *MemStorage) UpdateGauge(name string, value float64) {
 	m.Gauges[name] = value
-	log.Println("Gauge ", name, " updated", m.Gauges[name])
 
 }
 func (m *MemStorage) UpdateCounter(name string, value int64) {
 	m.Counters[name] += value
-	log.Println("Counter ", name, " updated", m.Counters[name])
 
 }
 
@@ -42,24 +39,24 @@ func (m *MemStorage) GetCounter(name string) (int64, bool) {
 	return 0, false
 }
 
-func (m *MemStorage) GetAllMetrics() ([]models.Metric, error) {
-	var metrics []models.Metric
+func (m *MemStorage) GetAll() ([]metrics.Metric, error) {
+	var metric []metrics.Metric
 
 	for name, value := range m.Gauges {
-		metrics = append(metrics, models.Metric{
+		metric = append(metric, metrics.Metric{
 			Name:  name,
-			Type:  models.Gauge,
+			Type:  metrics.Gauge,
 			Value: value,
 		})
 	}
 
 	for name, value := range m.Counters {
-		metrics = append(metrics, models.Metric{
+		metric = append(metric, metrics.Metric{
 			Name:  name,
-			Type:  models.Counter,
+			Type:  metrics.Counter,
 			Value: value,
 		})
 	}
 
-	return metrics, nil
+	return metric, nil
 }

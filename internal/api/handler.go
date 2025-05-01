@@ -1,19 +1,19 @@
-package handlers
+package api
 
 import (
 	"fmt"
-	"github.com/chestorix/monmetrics/internal/models"
-	"github.com/chestorix/monmetrics/internal/service"
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
+	"github.com/chestorix/monmetrics/internal/metrics"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
 type MetricsHandler struct {
-	service service.MetricsService
+	service interfaces.Service
 }
 
-func NewMetricsHandler(service service.MetricsService) *MetricsHandler {
+func NewMetricsHandler(service interfaces.Service) *MetricsHandler {
 	return &MetricsHandler{service: service}
 }
 
@@ -36,7 +36,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	metricName, metricValue := parts[2], parts[3]
 
 	switch metricType {
-	case models.Gauge:
+	case metrics.Gauge:
 		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			http.Error(w, "invalid value for gauge", http.StatusBadRequest)
@@ -49,7 +49,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "Gauge metric updated")
 
-	case models.Counter:
+	case metrics.Counter:
 		value, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
 			http.Error(w, "invalid value for counter", http.StatusBadRequest)
@@ -63,7 +63,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Counter metric updated")
 
 	default:
-		http.Error(w, models.ErrInvalidMetricType.Error(), http.StatusBadRequest)
+		http.Error(w, metrics.ErrInvalidMetricType.Error(), http.StatusBadRequest)
 	}
 }
 
@@ -85,10 +85,10 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 	metricName := parts[2]
 
 	switch metricType {
-	case models.Gauge:
+	case metrics.Gauge:
 		value, err := h.service.GetGauge(metricName)
 		if err != nil {
-			if err == models.ErrMetricNotFound {
+			if err == metrics.ErrMetricNotFound {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -98,10 +98,10 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, value)
 
-	case models.Counter:
+	case metrics.Counter:
 		value, err := h.service.GetCounter(metricName)
 		if err != nil {
-			if err == models.ErrMetricNotFound {
+			if err == metrics.ErrMetricNotFound {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,7 +112,7 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 		fmt.Fprint(w, value)
 
 	default:
-		http.Error(w, models.ErrInvalidMetricType.Error(), http.StatusBadRequest)
+		http.Error(w, metrics.ErrInvalidMetricType.Error(), http.StatusBadRequest)
 	}
 }
 
@@ -122,7 +122,7 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	metrics, err := h.service.GetAllMetrics()
+	metrics, err := h.service.GetAll()
 	if err != nil {
 		http.Error(w, "Failed to get metrics", http.StatusInternalServerError)
 		return

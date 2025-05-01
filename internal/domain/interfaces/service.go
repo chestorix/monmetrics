@@ -1,11 +1,11 @@
-package service
+package interfaces
 
-import "github.com/chestorix/monmetrics/internal/models"
+import "github.com/chestorix/monmetrics/internal/metrics"
 
-type MetricsService interface {
+type Service interface {
 	UpdateGauge(name string, value float64) error
 	UpdateCounter(name string, value int64) error
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
-	GetAllMetrics() ([]models.Metric, error)
+	GetAll() ([]metrics.Metric, error)
 }
