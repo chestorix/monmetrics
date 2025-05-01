@@ -2,10 +2,10 @@ package main
 
 import (
 	"github.com/caarlos0/env/v11"
-	"github.com/chestorix/monmetrics/internal/collector"
 	"github.com/chestorix/monmetrics/internal/config"
-	"github.com/chestorix/monmetrics/internal/models"
-	"github.com/chestorix/monmetrics/internal/sender"
+	"github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/metrics/collector"
+	"github.com/chestorix/monmetrics/internal/metrics/sender"
 	"log"
 	"strings"
 	"time"
@@ -59,7 +59,7 @@ func main() {
 	defer pollTicker.Stop()
 	defer reportTicker.Stop()
 
-	var lastMetrics []models.Metric
+	var lastMetrics []metrics.Metric
 
 	for {
 		select {

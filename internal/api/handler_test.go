@@ -1,8 +1,8 @@
-package handlers
+package api
 
 import (
 	"errors"
-	"github.com/chestorix/monmetrics/internal/models"
+	"github.com/chestorix/monmetrics/internal/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -37,7 +37,7 @@ func (m *MockMetricsService) UpdateCounter(name string, value int64) error {
 func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 	val, ok := m.gaugeValues[name]
 	if !ok {
-		return 0, models.ErrMetricNotFound
+		return 0, metrics.ErrMetricNotFound
 	}
 	return val, nil
 }
@@ -45,32 +45,32 @@ func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 func (m *MockMetricsService) GetCounter(name string) (int64, error) {
 	val, ok := m.counterValues[name]
 	if !ok {
-		return 0, models.ErrMetricNotFound
+		return 0, metrics.ErrMetricNotFound
 	}
 	return val, nil
 }
 
-func (m *MockMetricsService) GetAllMetrics() ([]models.Metric, error) {
+func (m *MockMetricsService) GetAll() ([]metrics.Metric, error) {
 	if m.getAllError {
 		return nil, errors.New("mock error")
 	}
 
-	var metrics []models.Metric
+	var metric []metrics.Metric
 	for name, value := range m.gaugeValues {
-		metrics = append(metrics, models.Metric{
+		metric = append(metric, metrics.Metric{
 			Name:  name,
-			Type:  models.Gauge,
+			Type:  metrics.Gauge,
 			Value: value,
 		})
 	}
 	for name, value := range m.counterValues {
-		metrics = append(metrics, models.Metric{
+		metric = append(metric, metrics.Metric{
 			Name:  name,
-			Type:  models.Counter,
+			Type:  metrics.Counter,
 			Value: value,
 		})
 	}
-	return metrics, nil
+	return metric, nil
 }
 
 func TestMetricsHandler_UpdateHandler(t *testing.T) {

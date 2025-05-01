@@ -2,7 +2,7 @@ package sender
 
 import (
 	"fmt"
-	"github.com/chestorix/monmetrics/internal/models"
+	"github.com/chestorix/monmetrics/internal/metrics"
 	"net/http"
 	"time"
 )
@@ -19,7 +19,7 @@ func NewHTTPSender(baseURL string) *HTTPSender {
 	}
 }
 
-func (s *HTTPSender) Send(metric models.Metric) error {
+func (s *HTTPSender) Send(metric metrics.Metric) error {
 	url := fmt.Sprintf("%s/update/%s/%s/%v", s.baseURL, metric.Type, metric.Name, metric.Value)
 
 	resp, err := s.client.Post(url, "text/plain", nil)
