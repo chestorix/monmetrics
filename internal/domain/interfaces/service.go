@@ -7,5 +7,7 @@ type Service interface {
 	UpdateCounter(name string, value int64) error
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
-	GetAll() ([]metrics.Metric, error)
+	GetAll() ([]models.Metric, error)
+	UpdateMetricJSON(metric models.Metrics) (models.Metrics, error)
+	GetMetricJSON(metric models.Metrics) (models.Metrics, error)
 }

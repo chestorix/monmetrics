@@ -39,21 +39,21 @@ func (m *MemStorage) GetCounter(name string) (int64, bool) {
 	return 0, false
 }
 
-func (m *MemStorage) GetAll() ([]metrics.Metric, error) {
-	var metric []metrics.Metric
+func (m *MemStorage) GetAll() ([]models.Metric, error) {
+	var metric []models.Metric
 
 	for name, value := range m.Gauges {
-		metric = append(metric, metrics.Metric{
+		metric = append(metric, models.Metric{
 			Name:  name,
-			Type:  metrics.Gauge,
+			Type:  models.Gauge,
 			Value: value,
 		})
 	}
 
 	for name, value := range m.Counters {
-		metric = append(metric, metrics.Metric{
+		metric = append(metric, models.Metric{
 			Name:  name,
-			Type:  metrics.Counter,
+			Type:  models.Counter,
 			Value: value,
 		})
 	}

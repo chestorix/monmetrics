@@ -31,10 +31,12 @@ func (r *Router) SetupRoutes(metricsHandler *MetricsHandler) {
 		r.Get("/", metricsHandler.GetAllMetricsHandler)
 
 		r.Route("/update", func(r chi.Router) {
+			r.Post("/", metricsHandler.UpdateJSONHandler)
 			r.Post("/{metricType}/{metricName}/{metricValue}", metricsHandler.UpdateHandler)
 		})
 
 		r.Route("/value", func(r chi.Router) {
+			r.Post("/", metricsHandler.ValueJSONHandler)
 			r.Get("/{metricType}/{metricName}", metricsHandler.GetValuesHandler)
 		})
 	})

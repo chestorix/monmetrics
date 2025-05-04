@@ -12,7 +12,6 @@ func NewLoggerMiddleware(logger *logrus.Logger) func(http.Handler) http.Handler 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			// Специальный ResponseWriter для отслеживания статуса и размера
 			ww := &responseWriter{w, http.StatusOK, 0}
 
 			defer func() {

@@ -59,7 +59,7 @@ func main() {
 	defer pollTicker.Stop()
 	defer reportTicker.Stop()
 
-	var lastMetrics []metrics.Metric
+	var lastMetrics []models.Metric
 
 	for {
 		select {
@@ -70,7 +70,8 @@ func main() {
 				continue
 			}
 			for _, metric := range lastMetrics {
-				if err := sender.Send(metric); err != nil {
+				//if err := sender.Send(metric); err != nil {
+				if err := sender.SendJSON(metric); err != nil {
 					log.Println(err)
 				}
 			}

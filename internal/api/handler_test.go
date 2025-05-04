@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func (m *MockMetricsService) UpdateCounter(name string, value int64) error {
 func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 	val, ok := m.gaugeValues[name]
 	if !ok {
-		return 0, metrics.ErrMetricNotFound
+		return 0, models.ErrMetricNotFound
 	}
 	return val, nil
 }
@@ -45,32 +46,94 @@ func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 func (m *MockMetricsService) GetCounter(name string) (int64, error) {
 	val, ok := m.counterValues[name]
 	if !ok {
-		return 0, metrics.ErrMetricNotFound
+		return 0, models.ErrMetricNotFound
 	}
 	return val, nil
 }
 
-func (m *MockMetricsService) GetAll() ([]metrics.Metric, error) {
+func (m *MockMetricsService) GetAll() ([]models.Metric, error) {
 	if m.getAllError {
 		return nil, errors.New("mock error")
 	}
 
-	var metric []metrics.Metric
+	var metric []models.Metric
 	for name, value := range m.gaugeValues {
-		metric = append(metric, metrics.Metric{
+		metric = append(metric, models.Metric{
 			Name:  name,
-			Type:  metrics.Gauge,
+			Type:  models.Gauge,
 			Value: value,
 		})
 	}
 	for name, value := range m.counterValues {
-		metric = append(metric, metrics.Metric{
+		metric = append(metric, models.Metric{
 			Name:  name,
-			Type:  metrics.Counter,
+			Type:  models.Counter,
 			Value: value,
 		})
 	}
 	return metric, nil
+}
+
+func (m *MockMetricsService) UpdateMetricJSON(metric models.Metrics) (models.Metrics, error) {
+	switch metric.MType {
+	case models.Gauge:
+		if metric.Value == nil {
+			return metric, models.ErrInvalidMetricType
+		}
+		m.gaugeValues[metric.ID] = *metric.Value
+		// Возвращаем обновленную метрику
+		return models.Metrics{
+			ID:    metric.ID,
+			MType: metric.MType,
+			Value: metric.Value,
+		}, nil
+	case models.Counter:
+		if metric.Delta == nil {
+			return metric, models.ErrInvalidMetricType
+		}
+		m.counterValues[metric.ID] += *metric.Delta
+		updatedValue := m.counterValues[metric.ID]
+		return models.Metrics{
+			ID:    metric.ID,
+			MType: metric.MType,
+			Delta: &updatedValue,
+		}, nil
+	default:
+		return metric, models.ErrInvalidMetricType
+	}
+}
+
+func (m *MockMetricsService) GetMetricJSON(metric models.Metrics) (models.Metrics, error) {
+	switch metric.MType {
+	case models.Gauge:
+		val, ok := m.gaugeValues[metric.ID]
+		if !ok {
+			return metric, models.ErrMetricNotFound
+		}
+
+		valueCopy := val
+		return models.Metrics{
+			ID:    metric.ID,
+			MType: metric.MType,
+			Value: &valueCopy,
+		}, nil
+
+	case models.Counter:
+		val, ok := m.counterValues[metric.ID]
+		if !ok {
+			return metric, models.ErrMetricNotFound
+		}
+
+		deltaCopy := val
+		return models.Metrics{
+			ID:    metric.ID,
+			MType: metric.MType,
+			Delta: &deltaCopy,
+		}, nil
+
+	default:
+		return metric, models.ErrInvalidMetricType
+	}
 }
 
 func TestMetricsHandler_UpdateHandler(t *testing.T) {
@@ -302,6 +365,116 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 
 			for _, substr := range test.wantInBody {
 				assert.Contains(t, bodyStr, substr)
+			}
+		})
+	}
+}
+
+func TestMetricsHandler_UpdateJSONHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		payload      string
+		wantStatus   int
+		wantResponse string
+	}{
+		{
+			name:         "update gauge",
+			payload:      `{"id":"temperature","type":"gauge","value":23.5}`,
+			wantStatus:   http.StatusOK,
+			wantResponse: `{"id":"temperature","type":"gauge","value":23.5}`,
+		},
+		{
+			name:         "update counter",
+			payload:      `{"id":"requests","type":"counter","delta":1}`,
+			wantStatus:   http.StatusOK,
+			wantResponse: `{"id":"requests","type":"counter","delta":1}`,
+		},
+		{
+			name:         "invalid type",
+			payload:      `{"id":"test","type":"invalid","value":1}`,
+			wantStatus:   http.StatusBadRequest,
+			wantResponse: `{"error":"Invalid metric type"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := NewMockMetricsService()
+			handler := NewMetricsHandler(mockService)
+
+			req := httptest.NewRequest(http.MethodPost, "/update/", strings.NewReader(tt.payload))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			handler.UpdateJSONHandler(w, req)
+
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			if tt.wantResponse != "" {
+				body, _ := io.ReadAll(resp.Body)
+				assert.JSONEq(t, tt.wantResponse, string(body))
+			}
+		})
+	}
+}
+
+func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		prepare      func(*MockMetricsService)
+		payload      string
+		wantStatus   int
+		wantResponse string
+	}{
+		{
+			name: "get existing gauge",
+			prepare: func(s *MockMetricsService) {
+				s.UpdateGauge("temperature", 23.5)
+			},
+			payload:      `{"id":"temperature","type":"gauge"}`,
+			wantStatus:   http.StatusOK,
+			wantResponse: `{"id":"temperature","type":"gauge","value":23.5}`,
+		},
+		{
+			name:         "get non-existing gauge",
+			prepare:      func(s *MockMetricsService) {},
+			payload:      `{"id":"nonexistent","type":"gauge"}`,
+			wantStatus:   http.StatusNotFound,
+			wantResponse: `{"error":"Metric not found"}`,
+		},
+		{
+			name:         "invalid type",
+			payload:      `{"id":"test","type":"invalid"}`,
+			wantStatus:   http.StatusBadRequest,
+			wantResponse: `{"error":"Invalid metric type"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := NewMockMetricsService()
+			if tt.prepare != nil {
+				tt.prepare(mockService)
+			}
+			handler := NewMetricsHandler(mockService)
+
+			req := httptest.NewRequest(http.MethodPost, "/value/", strings.NewReader(tt.payload))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			handler.ValueJSONHandler(w, req)
+
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			if tt.wantResponse != "" {
+				body, _ := io.ReadAll(resp.Body)
+				assert.JSONEq(t, tt.wantResponse, string(body))
 			}
 		})
 	}
