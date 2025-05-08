@@ -9,9 +9,8 @@ import (
 
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
-		if acceptsGzip {
+		// Обработка входящего сжатого контента
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -21,16 +20,22 @@ func GzipMiddleware(next http.Handler) http.Handler {
 			r.Body = gz
 		}
 
-		contentType := r.Header.Get("Content-Type")
-		shouldCompress := acceptsGzip &&
-			(strings.Contains(contentType, "application/json") ||
-				strings.Contains(contentType, "text/html"))
+		acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
+		if !acceptsGzip {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		contentType := w.Header().Get("Content-Type")
+		shouldCompress := strings.Contains(contentType, "application/json") ||
+			strings.Contains(contentType, "text/html")
 
 		if !shouldCompress {
 			next.ServeHTTP(w, r)
 			return
 		}
 
+		// Сжимаем ответ
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
 		defer gz.Close()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,11 +22,12 @@ func NewMetricsHandler(service interfaces.Service) *MetricsHandler {
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	log.Println("UpdateHandler start")
 
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
@@ -71,12 +73,13 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
 	if r.Method != http.MethodGet {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
@@ -121,17 +124,17 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 
 func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	metrics, err := h.service.GetAll()
 	if err != nil {
 		http.Error(w, "Failed to get metrics", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
 	html := `
@@ -182,6 +185,7 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
+	log.Println("UpdateJSONHandler start")
 	var metric models.Metrics
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(r.Body)
