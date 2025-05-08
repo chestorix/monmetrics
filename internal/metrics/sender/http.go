@@ -120,8 +120,8 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", "gzip,deflate,br")
-	req.Header.Set("Accept-Encoding", "gzip,deflate,br")
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("Accept-Encoding", "gzip")
 
 	resp, err := s.client.Do(req)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip,deflate,br")
+		acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 		if acceptsGzip {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
