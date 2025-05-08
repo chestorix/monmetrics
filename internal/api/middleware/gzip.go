@@ -34,10 +34,10 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		}
 
 		contentType := r.Header.Get("Content-Type")
-		shouldCompress := strings.Contains(contentType, "application/json") ||
-			strings.Contains(contentType, "text/html")
+		shouldNotCompress := strings.Contains(contentType, "text/plain") &&
+			!strings.Contains(contentType, "text/html")
 
-		if !shouldCompress {
+		if shouldNotCompress {
 			next.ServeHTTP(w, r)
 			return
 		}
