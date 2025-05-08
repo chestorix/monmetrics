@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,7 +26,6 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	log.Println("UpdateHandler start")
 
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
@@ -185,7 +183,6 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
-	log.Println("UpdateJSONHandler start")
 	var metric models.Metrics
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(r.Body)

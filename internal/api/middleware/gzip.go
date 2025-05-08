@@ -5,11 +5,18 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
+
+var gzPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(io.Discard)
+	},
+}
 
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Обработка входящего сжатого контента
+
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
@@ -26,7 +33,7 @@ func GzipMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		contentType := w.Header().Get("Content-Type")
+		contentType := r.Header.Get("Content-Type")
 		shouldCompress := strings.Contains(contentType, "application/json") ||
 			strings.Contains(contentType, "text/html")
 
@@ -35,13 +42,16 @@ func GzipMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Сжимаем ответ
-		w.Header().Set("Content-Encoding", "gzip")
-		gz := gzip.NewWriter(w)
+		gz := gzPool.Get().(*gzip.Writer)
+		defer gzPool.Put(gz)
+		gz.Reset(w)
 		defer gz.Close()
 
-		gzResponseWriter := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		next.ServeHTTP(gzResponseWriter, r)
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Add("Vary", "Accept-Encoding")
+
+		grw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		next.ServeHTTP(grw, r)
 	})
 }
 
@@ -52,4 +62,9 @@ type gzipResponseWriter struct {
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	w.Header().Del("Content-Length")
+	w.ResponseWriter.WriteHeader(code)
 }
