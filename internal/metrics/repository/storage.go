@@ -1,27 +1,84 @@
 package repository
 
 import (
+	"encoding/json"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
+	"os"
+	"sync"
 )
 
 type MemStorage struct {
 	Gauges   map[string]float64
 	Counters map[string]int64
+	mu       sync.RWMutex
+	filePath string
 }
 
-func NewMemStorage() interfaces.Repository {
+func NewMemStorage(filePath string) interfaces.Repository {
 	return &MemStorage{
 		Gauges:   make(map[string]float64),
 		Counters: make(map[string]int64),
+		filePath: filePath,
 	}
 }
-func (m *MemStorage) UpdateGauge(name string, value float64) {
-	m.Gauges[name] = value
 
+func (m *MemStorage) Load() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	file, err := os.ReadFile(m.filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var data struct {
+		Gauges   map[string]float64 `json:"gauges"`
+		Counters map[string]int64   `json:"counters"`
+	}
+	if err := json.Unmarshal(file, &data); err != nil {
+		return err
+	}
+	m.Gauges = data.Gauges
+	m.Counters = data.Counters
+	return nil
+}
+
+func (m *MemStorage) Save() error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	data := struct {
+		Gauges   map[string]float64 `json:"gauges"`
+		Counters map[string]int64   `json:"counters"`
+	}{
+		Gauges:   m.Gauges,
+		Counters: m.Counters,
+	}
+
+	file, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	tmpFile := m.filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, file, 0644); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpFile, m.filePath)
+}
+
+func (m *MemStorage) UpdateGauge(name string, value float64) {
+	m.mu.Lock()
+	m.Gauges[name] = value
+	m.mu.Unlock()
 }
 func (m *MemStorage) UpdateCounter(name string, value int64) {
+	m.mu.Lock()
 	m.Counters[name] += value
+	m.mu.Unlock()
 
 }
 

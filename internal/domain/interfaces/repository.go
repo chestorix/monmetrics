@@ -8,4 +8,6 @@ type Repository interface {
 	GetGauge(name string) (float64, bool)
 	GetCounter(name string) (int64, bool)
 	GetAll() ([]models.Metric, error)
+	Save() error
+	Load() error
 }
