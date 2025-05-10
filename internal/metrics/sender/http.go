@@ -114,7 +114,7 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", s.baseURL+"/update/", &buf)
+	req, err := http.NewRequest(http.MethodPost, s.baseURL+"/update/", &buf)
 	if err != nil {
 		return err
 	}

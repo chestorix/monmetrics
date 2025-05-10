@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
@@ -14,19 +13,20 @@ import (
 type MetricsHandler struct {
 	service interfaces.Service
 }
+type jsonError struct {
+	Error string `json:"error"`
+}
 
 func NewMetricsHandler(service interfaces.Service) *MetricsHandler {
 	return &MetricsHandler{service: service}
 }
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if r.Method != http.MethodPost {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 
@@ -71,13 +71,11 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if r.Method != http.MethodGet {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
@@ -121,12 +119,12 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if r.Method != http.MethodGet {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	metrics, err := h.service.GetAll()
 	if err != nil {
 		http.Error(w, "Failed to get metrics", http.StatusInternalServerError)
@@ -134,8 +132,75 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	w.WriteHeader(http.StatusOK)
+	html := generateMetricsHTML(metrics)
+	w.Write([]byte(html))
+}
 
-	html := `
+func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	var metric models.Metrics
+	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+		renderError(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	updateMetric, err := h.service.UpdateMetricJSON(metric)
+	if err != nil {
+		switch err {
+		case models.ErrInvalidMetricType:
+			renderError(w, "Invalid metric type", http.StatusBadRequest)
+		default:
+			renderError(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(updateMetric); err != nil {
+		renderError(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var metric models.Metrics
+	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+		renderError(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	foundMetric, err := h.service.GetMetricJSON(metric)
+	if err != nil {
+		switch err {
+		case models.ErrMetricNotFound:
+			renderError(w, "Metric not found", http.StatusNotFound)
+		case models.ErrInvalidMetricType:
+			renderError(w, "Invalid metric type", http.StatusBadRequest)
+		default:
+			renderError(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(foundMetric); err != nil {
+		renderError(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func generateMetricsHTML(metrics []models.Metric) string {
+	var htmlBuilder strings.Builder
+
+	htmlBuilder.WriteString(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -157,95 +222,32 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
                 <th>Name</th>
                 <th>Value</th>
             </tr>
-    `
+    `)
 
 	for _, metric := range metrics {
-		html += fmt.Sprintf(`
+		htmlBuilder.WriteString(fmt.Sprintf(`
             <tr>
                 <td>%s</td>
                 <td>%s</td>
                 <td>%v</td>
             </tr>
-        `, metric.Type, metric.Name, metric.Value)
+        `, metric.Type, metric.Name, metric.Value))
 	}
 
-	html += `
+	htmlBuilder.WriteString(`
         </table>
     </body>
     </html>
-    `
-	w.Write([]byte(html))
+    `)
+
+	return htmlBuilder.String()
 }
 
-func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
+func renderError(w http.ResponseWriter, errorMsg string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
-	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
-		return
-	}
-	var metric models.Metrics
-	var buf bytes.Buffer
-	_, err := buf.ReadFrom(r.Body)
+	w.WriteHeader(statusCode)
+	err := json.NewEncoder(w).Encode(jsonError{Error: errorMsg})
 	if err != nil {
-		http.Error(w, `{"error": "Invalid JSON"}`, http.StatusBadRequest)
-		return
+		http.Error(w, `{"error": "Failed to encode error"}`, http.StatusInternalServerError)
 	}
-	if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
-		http.Error(w, `{"error": "Invalid JSON"}`, http.StatusBadRequest)
-		return
-	}
-	updateMetric, err := h.service.UpdateMetricJSON(metric)
-	if err != nil {
-		switch err {
-		case models.ErrInvalidMetricType:
-			http.Error(w, `{"error": "Invalid metric type"}`, http.StatusBadRequest)
-		default:
-			http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
-		}
-		return
-	}
-	resp, err := json.Marshal(updateMetric)
-	if err != nil {
-		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
-}
-
-func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
-		return
-	}
-
-	var metric models.Metrics
-	var buf bytes.Buffer
-	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
-		http.Error(w, `{"error": "Invalid JSON"}`, http.StatusBadRequest)
-	}
-	if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
-		http.Error(w, `{"error": "Invalid JSON"}`, http.StatusBadRequest)
-		return
-	}
-	foundMetric, err := h.service.GetMetricJSON(metric)
-	if err != nil {
-		switch err {
-		case models.ErrMetricNotFound:
-			http.Error(w, `{"error": "Metric not found"}`, http.StatusNotFound)
-		case models.ErrInvalidMetricType:
-			http.Error(w, `{"error": "Invalid metric type"}`, http.StatusBadRequest)
-		default:
-			http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
-		}
-		return
-	}
-	resp, err := json.Marshal(foundMetric)
-	if err != nil {
-		http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
 }

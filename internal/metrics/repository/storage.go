@@ -70,30 +70,31 @@ func (m *MemStorage) Save() error {
 	return os.Rename(tmpFile, m.filePath)
 }
 
-func (m *MemStorage) UpdateGauge(name string, value float64) {
+func (m *MemStorage) UpdateGauge(name string, value float64) error {
 	m.mu.Lock()
 	m.Gauges[name] = value
 	m.mu.Unlock()
+	return nil
 }
-func (m *MemStorage) UpdateCounter(name string, value int64) {
+func (m *MemStorage) UpdateCounter(name string, value int64) error {
 	m.mu.Lock()
 	m.Counters[name] += value
 	m.mu.Unlock()
-
+	return nil
 }
 
-func (m *MemStorage) GetGauge(name string) (float64, bool) {
+func (m *MemStorage) GetGauge(name string) (float64, bool, error) {
 	if value, ok := m.Gauges[name]; ok {
-		return value, true
+		return value, true, nil
 	}
-	return 0, false
+	return 0, false, nil
 }
 
-func (m *MemStorage) GetCounter(name string) (int64, bool) {
+func (m *MemStorage) GetCounter(name string) (int64, bool, error) {
 	if value, ok := m.Counters[name]; ok {
-		return value, true
+		return value, true, nil
 	}
-	return 0, false
+	return 0, false, nil
 }
 
 func (m *MemStorage) GetAll() ([]models.Metric, error) {

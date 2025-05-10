@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/sirupsen/logrus"
@@ -14,6 +13,7 @@ type Server struct {
 	router  *Router
 	service interfaces.Service
 	server  *http.Server
+	logger  *logrus.Logger
 }
 
 func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logger *logrus.Logger) *Server {
@@ -22,6 +22,7 @@ func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logge
 		cfg:     cfg,
 		service: metricService,
 		router:  router,
+		logger:  logger,
 	}
 }
 
@@ -33,7 +34,7 @@ func (s *Server) Start() error {
 		Addr:    s.cfg.Address,
 		Handler: s.router,
 	}
-	fmt.Println("Server listened address: ", s.cfg.Address)
+	s.logger.Println("Server listened address: ", s.cfg.Address)
 
 	return httpServer.ListenAndServe()
 

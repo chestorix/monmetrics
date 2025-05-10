@@ -24,7 +24,7 @@ func (s *MetricsService) UpdateCounter(name string, value int64) error {
 }
 
 func (s *MetricsService) GetGauge(name string) (float64, error) {
-	value, exists := s.repo.GetGauge(name)
+	value, exists, _ := s.repo.GetGauge(name)
 	if !exists {
 		return 0, models.ErrMetricNotFound
 	}
@@ -32,7 +32,7 @@ func (s *MetricsService) GetGauge(name string) (float64, error) {
 }
 
 func (s *MetricsService) GetCounter(name string) (int64, error) {
-	value, exists := s.repo.GetCounter(name)
+	value, exists, _ := s.repo.GetCounter(name)
 	if !exists {
 		return 0, models.ErrMetricNotFound
 	}
@@ -56,7 +56,7 @@ func (s *MetricsService) UpdateMetricJSON(metric models.Metrics) (models.Metrics
 			return metric, models.ErrInvalidMetricType
 		}
 		s.repo.UpdateCounter(metric.ID, *metric.Delta)
-		respValue, _ := s.repo.GetCounter(metric.ID)
+		respValue, _, _ := s.repo.GetCounter(metric.ID)
 		metric.Delta = &respValue
 		return metric, nil
 	default:

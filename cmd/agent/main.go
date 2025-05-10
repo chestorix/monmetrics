@@ -23,6 +23,34 @@ func ensureHTTP(address string) string {
 	}
 	return address
 }
+func startAgent(agentCfg config.AgentConfig) {
+	collector := collector.NewRuntimeCollector()
+	sender := sender.NewHTTPSender(agentCfg.Address)
+
+	pollTicker := time.NewTicker(agentCfg.PollInterval)
+	reportTicker := time.NewTicker(agentCfg.ReportInterval)
+	defer pollTicker.Stop()
+	defer reportTicker.Stop()
+
+	var lastMetrics []models.Metric
+
+	for {
+		select {
+		case <-pollTicker.C:
+			lastMetrics = collector.Collect()
+		case <-reportTicker.C:
+			if lastMetrics == nil {
+				continue
+			}
+			for _, metric := range lastMetrics {
+				//if err := sender.Send(metric); err != nil {
+				if err := sender.SendJSON(metric); err != nil {
+					log.Println(err)
+				}
+			}
+		}
+	}
+}
 
 func main() {
 	parseFlags()
@@ -50,31 +78,5 @@ func main() {
 		PollInterval:   time.Duration(pollInterval) * time.Second,
 		ReportInterval: time.Duration(reportInterval) * time.Second,
 	}
-
-	collector := collector.NewRuntimeCollector()
-	sender := sender.NewHTTPSender(agentCfg.Address)
-
-	pollTicker := time.NewTicker(agentCfg.PollInterval)
-	reportTicker := time.NewTicker(agentCfg.ReportInterval)
-	defer pollTicker.Stop()
-	defer reportTicker.Stop()
-
-	var lastMetrics []models.Metric
-
-	for {
-		select {
-		case <-pollTicker.C:
-			lastMetrics = collector.Collect()
-		case <-reportTicker.C:
-			if lastMetrics == nil {
-				continue
-			}
-			for _, metric := range lastMetrics {
-				//if err := sender.Send(metric); err != nil {
-				if err := sender.SendJSON(metric); err != nil {
-					log.Println(err)
-				}
-			}
-		}
-	}
+	startAgent(agentCfg)
 }
