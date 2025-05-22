@@ -202,7 +202,6 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	if h.dbDNS == "" {
-		// Если DSN не указан, считаем что БД не используется
 		w.WriteHeader(http.StatusOK)
 		return
 	}

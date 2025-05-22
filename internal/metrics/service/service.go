@@ -1,11 +1,13 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"time"
 )
 
 type MetricsService struct {
@@ -88,15 +90,22 @@ func (s *MetricsService) GetMetricJSON(metric models.Metrics) (models.Metrics, e
 	}
 }
 func (s *MetricsService) CheckDB(ps string) error {
+	if ps == "" {
+		return nil
+	}
+
 	db, err := sql.Open("pgx", ps)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("database ping failed: %w", err)
 	}
+
 	return nil
 }
