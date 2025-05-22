@@ -201,15 +201,18 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
-	if h.dbDNS != "" {
-		err := h.service.CheckDB(h.dbDNS)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
+	if h.dbDNS == "" {
+		// Если DSN не указан, считаем что БД не используется
+		w.WriteHeader(http.StatusOK)
+		return
 	}
-	w.WriteHeader(http.StatusInternalServerError)
+
+	if err := h.service.CheckDB(h.dbDNS); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func generateMetricsHTML(metrics []models.Metric) string {

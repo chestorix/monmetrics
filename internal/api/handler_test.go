@@ -137,11 +137,11 @@ func (m *MockMetricsService) GetMetricJSON(metric models.Metrics) (models.Metric
 	}
 }
 func (m *MockMetricsService) CheckDB(ps string) error {
-	if m.checkDBError {
-		return errors.New("mock DB error")
-	}
 	if ps == "" {
-		return errors.New("empty DSN")
+		return nil // Пустой DSN - считаем что БД не используется
+	}
+	if m.checkDBError {
+		return errors.New("mock database error")
 	}
 	return nil
 }
@@ -492,25 +492,34 @@ func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
 
 func TestMetricsHandler_PingHandler(t *testing.T) {
 	tests := []struct {
-		name     string
-		dbDNS    string
-		wantCode int
+		name      string
+		dbDNS     string
+		mockError bool
+		wantCode  int
 	}{
 		{
-			name:     "with db connection",
+			name:     "successful connection",
 			dbDNS:    "valid-dsn",
 			wantCode: http.StatusOK,
 		},
 		{
-			name:     "without db connection",
+			name:      "connection error",
+			dbDNS:     "invalid-dsn",
+			mockError: true,
+			wantCode:  http.StatusInternalServerError,
+		},
+		{
+			name:     "no database configured",
 			dbDNS:    "",
-			wantCode: http.StatusInternalServerError,
+			wantCode: http.StatusOK, // Пустой DSN - БД не используется
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
+			mockService.checkDBError = tt.mockError
+
 			handler := NewMetricsHandler(mockService, tt.dbDNS)
 
 			req := httptest.NewRequest(http.MethodGet, "/ping", nil)
