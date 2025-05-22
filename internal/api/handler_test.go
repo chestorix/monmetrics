@@ -16,6 +16,7 @@ type MockMetricsService struct {
 	gaugeValues   map[string]float64
 	counterValues map[string]int64
 	getAllError   bool
+	checkDBError  bool
 }
 
 func NewMockMetricsService() *MockMetricsService {
@@ -135,6 +136,15 @@ func (m *MockMetricsService) GetMetricJSON(metric models.Metrics) (models.Metric
 		return metric, models.ErrInvalidMetricType
 	}
 }
+func (m *MockMetricsService) CheckDB(ps string) error {
+	if m.checkDBError {
+		return errors.New("mock DB error")
+	}
+	if ps == "" {
+		return errors.New("empty DSN")
+	}
+	return nil
+}
 
 func TestMetricsHandler_UpdateHandler(t *testing.T) {
 	type want struct {
@@ -188,7 +198,7 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
-			handler := NewMetricsHandler(mockService)
+			handler := NewMetricsHandler(mockService, "")
 
 			request := httptest.NewRequest(http.MethodPost, test.url, nil)
 			w := httptest.NewRecorder()
@@ -272,7 +282,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			if test.prepare != nil {
 				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService)
+			handler := NewMetricsHandler(mockService, "")
 
 			request := httptest.NewRequest(http.MethodGet, test.url, nil)
 			w := httptest.NewRecorder()
@@ -343,7 +353,7 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 			if test.prepare != nil {
 				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService)
+			handler := NewMetricsHandler(mockService, "")
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -400,7 +410,7 @@ func TestMetricsHandler_UpdateJSONHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
-			handler := NewMetricsHandler(mockService)
+			handler := NewMetricsHandler(mockService, "")
 
 			req := httptest.NewRequest(http.MethodPost, "/update/", strings.NewReader(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
@@ -459,7 +469,7 @@ func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
 			if tt.prepare != nil {
 				tt.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService)
+			handler := NewMetricsHandler(mockService, "")
 
 			req := httptest.NewRequest(http.MethodPost, "/value/", strings.NewReader(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
@@ -476,6 +486,42 @@ func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
 				body, _ := io.ReadAll(resp.Body)
 				assert.JSONEq(t, tt.wantResponse, string(body))
 			}
+		})
+	}
+}
+
+func TestMetricsHandler_PingHandler(t *testing.T) {
+	tests := []struct {
+		name     string
+		dbDNS    string
+		wantCode int
+	}{
+		{
+			name:     "with db connection",
+			dbDNS:    "valid-dsn",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "without db connection",
+			dbDNS:    "",
+			wantCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := NewMockMetricsService()
+			handler := NewMetricsHandler(mockService, tt.dbDNS)
+
+			req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+			w := httptest.NewRecorder()
+
+			handler.PingHandler(w, req)
+
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.wantCode, resp.StatusCode)
 		})
 	}
 }
