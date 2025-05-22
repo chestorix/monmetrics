@@ -41,5 +41,9 @@ func (r *Router) SetupRoutes(metricsHandler *MetricsHandler) {
 			r.Post("/", metricsHandler.ValueJSONHandler)
 			r.Get("/{metricType}/{metricName}", metricsHandler.GetValuesHandler)
 		})
+		r.Route("/ping", func(r chi.Router) {
+			r.Get("/", metricsHandler.PingHandler)
+		})
+
 	})
 }

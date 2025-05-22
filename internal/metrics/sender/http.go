@@ -2,7 +2,6 @@ package sender
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	models "github.com/chestorix/monmetrics/internal/metrics"
@@ -37,7 +36,7 @@ func NewHTTPSender(baseURL string) *HTTPSender {
 
 	return nil
 }*/
-/*
+
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
 	var m models.Metrics
 	m.ID = metric.Name
@@ -66,64 +65,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 	}
 
 	resp, err := s.client.Post(s.baseURL+"/update/", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned status %d", resp.StatusCode)
-	}
-
-	return nil
-}*/
-
-func (s *HTTPSender) SendJSON(metric models.Metric) error {
-	var m models.Metrics
-	m.ID = metric.Name
-	m.MType = metric.Type
-
-	switch metric.Type {
-	case models.Gauge:
-		if value, ok := metric.Value.(float64); ok {
-			m.Value = &value
-		} else {
-			return fmt.Errorf("invalid gauge value type")
-		}
-	case models.Counter:
-		if value, ok := metric.Value.(int64); ok {
-			m.Delta = &value
-		} else {
-			return fmt.Errorf("invalid counter value type")
-		}
-	default:
-		return models.ErrInvalidMetricType
-	}
-
-	jsonData, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	if _, err := gz.Write(jsonData); err != nil {
-		return err
-	}
-	if err := gz.Close(); err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, s.baseURL+"/update/", &buf)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", "gzip")
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	resp, err := s.client.Do(req)
 	if err != nil {
 		return err
 	}

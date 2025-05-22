@@ -27,7 +27,7 @@ func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logge
 }
 
 func (s *Server) Start() error {
-	handler := NewMetricsHandler(s.service)
+	handler := NewMetricsHandler(s.service, s.cfg.DatabaseDNS)
 	s.router.SetupRoutes(handler)
 
 	httpServer := &http.Server{

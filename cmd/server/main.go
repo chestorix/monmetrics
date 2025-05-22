@@ -21,6 +21,7 @@ type cfg struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
+	DatabaseDNS     string `env:"DATABASE_DNS"`
 }
 
 func main() {
@@ -57,12 +58,16 @@ func main() {
 	if !restore {
 		restore = flagRestore
 	}
-
+	dbDNS := conf.DatabaseDNS
+	if dbDNS == "" {
+		dbDNS = flagConnDB
+	}
 	cfg := config.ServerConfig{
 		Address:         serverAddress,
 		StoreInterval:   time.Duration(storeInterval) * time.Second,
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
+		DatabaseDNS:     dbDNS,
 	}
 	storage := repository.NewMemStorage(cfg.FileStoragePath)
 

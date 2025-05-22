@@ -12,13 +12,16 @@ import (
 
 type MetricsHandler struct {
 	service interfaces.Service
+	dbDNS   string
 }
 type jsonError struct {
 	Error string `json:"error"`
 }
 
-func NewMetricsHandler(service interfaces.Service) *MetricsHandler {
-	return &MetricsHandler{service: service}
+func NewMetricsHandler(service interfaces.Service, dbDNS string) *MetricsHandler {
+	return &MetricsHandler{service: service,
+		dbDNS: dbDNS,
+	}
 }
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -195,6 +198,18 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 	if err := json.NewEncoder(w).Encode(foundMetric); err != nil {
 		renderError(w, "Internal server error", http.StatusInternalServerError)
 	}
+}
+
+func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
+	if h.dbDNS != "" {
+		err := h.service.CheckDB(h.dbDNS)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func generateMetricsHTML(metrics []models.Metric) string {

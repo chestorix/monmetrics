@@ -1,8 +1,11 @@
 package service
 
 import (
+	"database/sql"
+	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type MetricsService struct {
@@ -83,4 +86,17 @@ func (s *MetricsService) GetMetricJSON(metric models.Metrics) (models.Metrics, e
 	default:
 		return metric, models.ErrInvalidMetricType
 	}
+}
+func (s *MetricsService) CheckDB(ps string) error {
+	db, err := sql.Open("pgx", ps)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+	return nil
 }

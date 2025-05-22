@@ -10,4 +10,5 @@ type Service interface {
 	GetAll() ([]models.Metric, error)
 	UpdateMetricJSON(metric models.Metrics) (models.Metrics, error)
 	GetMetricJSON(metric models.Metrics) (models.Metrics, error)
+	CheckDB(ps string) error
 }
