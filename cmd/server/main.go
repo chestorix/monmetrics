@@ -59,9 +59,13 @@ func main() {
 	if !restore {
 		restore = flagRestore
 	}
-	dbDNS := conf.DatabaseDNS
+	/*dbDNS := conf.DatabaseDNS
 	if dbDNS == "" {
 		dbDNS = flagConnDB
+	}*/
+	dbDNS := flagConnDB
+	if dbDNS == "" {
+		dbDNS = conf.DatabaseDNS
 	}
 	cfg := config.ServerConfig{
 		Address:         serverAddress,
