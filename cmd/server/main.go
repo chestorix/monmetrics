@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
@@ -22,20 +23,18 @@ type cfg struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
-	DatabaseDNS     string `env:"DATABASE_DNS"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 func main() {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetLevel(logrus.InfoLevel)
-
-	parseFlags()
-
 	var conf cfg
 	if err := env.Parse(&conf); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
+	parseFlags()
 
 	serverAddress := conf.Address
 	if serverAddress == "" {
@@ -59,23 +58,20 @@ func main() {
 	if !restore {
 		restore = flagRestore
 	}
-	/*dbDNS := conf.DatabaseDNS
-	if dbDNS == "" {
-		dbDNS = flagConnDB
-	}*/
-	dbDNS := flagConnDB
-	if dbDNS == "" {
-		dbDNS = conf.DatabaseDNS
+	dbDSN := conf.DatabaseDSN
+	if dbDSN == "" {
+		dbDSN = flagConnDB
+
 	}
 	cfg := config.ServerConfig{
 		Address:         serverAddress,
 		StoreInterval:   time.Duration(storeInterval) * time.Second,
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
-		DatabaseDNS:     dbDNS,
+		DatabaseDSN:     dbDSN,
 	}
 	storage := repository.NewMemStorage(cfg.FileStoragePath)
-
+	fmt.Println(cfg)
 	if cfg.Restore {
 		if err := storage.Load(); err != nil {
 			logger.WithError(err).Error("Failed to load metrics from file")

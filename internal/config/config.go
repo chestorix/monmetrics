@@ -7,7 +7,7 @@ type ServerConfig struct {
 	StoreInterval   time.Duration
 	FileStoragePath string
 	Restore         bool
-	DatabaseDNS     string
+	DatabaseDSN     string
 }
 
 type AgentConfig struct {

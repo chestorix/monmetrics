@@ -90,6 +90,7 @@ func (s *MetricsService) GetMetricJSON(metric models.Metrics) (models.Metrics, e
 	}
 }
 func (s *MetricsService) CheckDB(ps string) error {
+
 	if ps == "" {
 		return nil
 	}
