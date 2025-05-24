@@ -10,4 +10,5 @@ type Repository interface {
 	GetAll() ([]models.Metric, error)
 	Save() error
 	Load() error
+	Close() error
 }

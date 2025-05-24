@@ -118,3 +118,6 @@ func (m *MemStorage) GetAll() ([]models.Metric, error) {
 
 	return metric, nil
 }
+func (m *MemStorage) Close() error {
+	return nil
+}

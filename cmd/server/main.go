@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"github.com/chestorix/monmetrics/internal/metrics/service"
 	"github.com/sirupsen/logrus"
@@ -63,6 +64,8 @@ func main() {
 		dbDSN = flagConnDB
 
 	}
+	var storage interfaces.Repository
+
 	cfg := config.ServerConfig{
 		Address:         serverAddress,
 		StoreInterval:   time.Duration(storeInterval) * time.Second,
@@ -70,9 +73,24 @@ func main() {
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
 	}
-	storage := repository.NewMemStorage(cfg.FileStoragePath)
+	if dbDSN != "" {
+		pgStorage, err := repository.NewPostgresStorage(dbDSN)
+		if err != nil {
+			logger.Fatalf("Failed to initialize PostgreSQL storage: %v", err)
+		}
+		storage = pgStorage
+		defer pgStorage.Close()
+		logger.Info("Using PostgreSQL storage")
+	} else if cfg.FileStoragePath != "" {
+		storage = repository.NewMemStorage(cfg.FileStoragePath)
+		logger.Info("Using file storage")
+	} else {
+		storage = repository.NewMemStorage("")
+		logger.Info("Using in-memory storage")
+	}
+
 	fmt.Println(cfg)
-	if cfg.Restore {
+	if cfg.Restore && cfg.FileStoragePath != "" && dbDSN == "" {
 		if err := storage.Load(); err != nil {
 			logger.WithError(err).Error("Failed to load metrics from file")
 		}
