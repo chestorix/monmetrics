@@ -111,7 +111,6 @@ func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 
 	var metrics []models.Metric
 
-	// Получаем gauge метрики
 	rows, err := p.db.Query("SELECT name, value FROM gauges")
 	if err != nil {
 		return nil, err
@@ -130,8 +129,9 @@ func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 			Value: value,
 		})
 	}
-
-	// Получаем counter метрики
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	rows, err = p.db.Query("SELECT name, value FROM counters")
 	if err != nil {
 		return nil, err
@@ -150,7 +150,9 @@ func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 			Value: value,
 		})
 	}
-
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return metrics, nil
 }
 
