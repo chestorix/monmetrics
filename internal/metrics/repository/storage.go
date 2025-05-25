@@ -2,6 +2,7 @@ package repository
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
 	"os"
@@ -123,5 +124,22 @@ func (m *MemStorage) Close() error {
 }
 
 func (m *MemStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value == nil {
+				return fmt.Errorf("gauge value is nil")
+			}
+			m.Gauges[metric.ID] = *metric.Value
+		case models.Counter:
+			if metric.Delta == nil {
+				return fmt.Errorf("counter delta is nil")
+			}
+			m.Counters[metric.ID] += *metric.Delta
+		}
+	}
 	return nil
 }

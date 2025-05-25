@@ -42,7 +42,25 @@ func startAgent(agentCfg config.AgentConfig) {
 			if lastMetrics == nil {
 				continue
 			}
-			if err := sender.SendBatch(lastMetrics); err != nil {
+			var batch []models.Metrics
+			for _, m := range lastMetrics {
+				metric := models.Metrics{
+					ID:    m.Name,
+					MType: m.Type,
+				}
+				switch m.Type {
+				case models.Gauge:
+					if val, ok := m.Value.(float64); ok {
+						metric.Value = &val
+					}
+				case models.Counter:
+					if val, ok := m.Value.(int64); ok {
+						metric.Delta = &val
+					}
+				}
+				batch = append(batch, metric)
+			}
+			if err := sender.SendBatch(batch); err != nil {
 				log.Println("Failed to send batch:", err)
 				for _, metric := range lastMetrics {
 					if err := sender.SendJSON(metric); err != nil {

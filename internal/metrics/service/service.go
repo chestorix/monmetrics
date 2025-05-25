@@ -133,5 +133,25 @@ func (s *MetricsService) CheckDB(ps string) error {
 	}
 */
 func (s *MetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
-	return s.repo.UpdateMetricsBatch(metrics)
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value == nil {
+				return models.ErrInvalidMetricType
+			}
+			if err := s.repo.UpdateGauge(metric.ID, *metric.Value); err != nil {
+				return err
+			}
+		case models.Counter:
+			if metric.Delta == nil {
+				return models.ErrInvalidMetricType
+			}
+			if err := s.repo.UpdateCounter(metric.ID, *metric.Delta); err != nil {
+				return err
+			}
+		default:
+			return models.ErrInvalidMetricType
+		}
+	}
+	return nil
 }

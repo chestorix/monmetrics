@@ -219,19 +219,23 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	var metrics []models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
 		renderError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+
 	if len(metrics) == 0 {
 		renderError(w, "Empty batch", http.StatusBadRequest)
 		return
 	}
+
 	if err := h.service.UpdateMetricsBatch(metrics); err != nil {
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 func generateMetricsHTML(metrics []models.Metric) string {

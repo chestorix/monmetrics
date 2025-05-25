@@ -78,22 +78,21 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 	return nil
 }
 
-func (s *HTTPSender) SendBatch(metrics []models.Metric) error {
+func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 	var batch []models.Metrics
 	for _, metric := range metrics {
 		m := models.Metrics{
-			ID:    metric.Name,
-			MType: metric.Type,
+			ID:    metric.ID,
+			MType: metric.MType,
 		}
-		switch metric.Type {
+		switch metric.MType {
 		case models.Gauge:
-			if value, ok := metric.Value.(float64); ok {
-				m.Value = &value
-			}
+			m.Value = metric.Value
+
 		case models.Counter:
-			if value, ok := metric.Value.(int64); ok {
-				m.Delta = &value
-			}
+
+			m.Delta = metric.Delta
+
 		}
 		batch = append(batch, m)
 	}
