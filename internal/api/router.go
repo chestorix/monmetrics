@@ -44,6 +44,9 @@ func (r *Router) SetupRoutes(metricsHandler *MetricsHandler) {
 		r.Route("/ping", func(r chi.Router) {
 			r.Get("/", metricsHandler.PingHandler)
 		})
+		r.Route("/updates", func(r chi.Router) {
+			r.Post("/", metricsHandler.UpdatesHandler)
+		})
 
 	})
 }

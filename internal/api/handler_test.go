@@ -146,6 +146,10 @@ func (m *MockMetricsService) CheckDB(ps string) error {
 	return nil
 }
 
+func (m *MockMetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
+	return nil
+}
+
 func TestMetricsHandler_UpdateHandler(t *testing.T) {
 	type want struct {
 		code        int

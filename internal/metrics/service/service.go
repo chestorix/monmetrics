@@ -110,3 +110,28 @@ func (s *MetricsService) CheckDB(ps string) error {
 
 	return nil
 }
+
+/*
+	func (s *MetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
+		for _, metric := range metrics {
+			switch metric.MType {
+			case models.Gauge:
+				if metric.Value == nil {
+					return models.ErrInvalidMetricType
+				}
+				s.repo.UpdateGauge(metric.ID, *metric.Value)
+			case models.Counter:
+				if metric.Delta == nil {
+					return models.ErrInvalidMetricType
+				}
+				s.repo.UpdateCounter(metric.ID, *metric.Delta)
+			default:
+				return models.ErrInvalidMetricType
+			}
+		}
+		return nil
+	}
+*/
+func (s *MetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
+	return s.repo.UpdateMetricsBatch(metrics)
+}

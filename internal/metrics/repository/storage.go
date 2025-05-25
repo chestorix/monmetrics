@@ -121,3 +121,7 @@ func (m *MemStorage) GetAll() ([]models.Metric, error) {
 func (m *MemStorage) Close() error {
 	return nil
 }
+
+func (m *MemStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
+	return nil
+}

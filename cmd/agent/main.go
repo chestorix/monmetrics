@@ -42,10 +42,12 @@ func startAgent(agentCfg config.AgentConfig) {
 			if lastMetrics == nil {
 				continue
 			}
-			for _, metric := range lastMetrics {
-				//if err := sender.Send(metric); err != nil {
-				if err := sender.SendJSON(metric); err != nil {
-					log.Println(err)
+			if err := sender.SendBatch(lastMetrics); err != nil {
+				log.Println("Failed to send batch:", err)
+				for _, metric := range lastMetrics {
+					if err := sender.SendJSON(metric); err != nil {
+						log.Println("Failed to send metric:", err)
+					}
 				}
 			}
 		}

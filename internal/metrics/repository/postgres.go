@@ -74,7 +74,58 @@ func (p *PostgresStorage) UpdateCounter(name string, value int64) error {
 	`, name, value)
 	return err
 }
+func (p *PostgresStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
+	tx, err := p.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	gaugeStmt, err := tx.Prepare(`
+        INSERT INTO gauges (name, value)
+        VALUES ($1, $2)
+        ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value
+    `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare gauge statement: %w", err)
+	}
+	defer gaugeStmt.Close()
+
+	counterStmt, err := tx.Prepare(`
+        INSERT INTO counters (name, value)
+        VALUES ($1, $2)
+        ON CONFLICT (name) DO UPDATE SET value = counters.value + EXCLUDED.value
+    `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare counter statement: %w", err)
+	}
+	defer counterStmt.Close()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value == nil {
+				return fmt.Errorf("gauge value is nil for metric %s", metric.ID)
+			}
+			if _, err := gaugeStmt.Exec(metric.ID, *metric.Value); err != nil {
+				return fmt.Errorf("failed to update gauge: %w", err)
+			}
+
+		case models.Counter:
+			if metric.Delta == nil {
+				return fmt.Errorf("counter delta is nil for metric %s", metric.ID)
+			}
+			if _, err := counterStmt.Exec(metric.ID, *metric.Delta); err != nil {
+				return fmt.Errorf("failed to update counter: %w", err)
+			}
+		}
+	}
+
+	return tx.Commit()
+}
 func (p *PostgresStorage) GetGauge(name string) (float64, bool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
