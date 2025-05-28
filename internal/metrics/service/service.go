@@ -111,47 +111,10 @@ func (s *MetricsService) CheckDB(ps string) error {
 	return nil
 }
 
-/*
-	func (s *MetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
-		for _, metric := range metrics {
-			switch metric.MType {
-			case models.Gauge:
-				if metric.Value == nil {
-					return models.ErrInvalidMetricType
-				}
-				s.repo.UpdateGauge(metric.ID, *metric.Value)
-			case models.Counter:
-				if metric.Delta == nil {
-					return models.ErrInvalidMetricType
-				}
-				s.repo.UpdateCounter(metric.ID, *metric.Delta)
-			default:
-				return models.ErrInvalidMetricType
-			}
-		}
-		return nil
-	}
-*/
 func (s *MetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
-	for _, metric := range metrics {
-		switch metric.MType {
-		case models.Gauge:
-			if metric.Value == nil {
-				return models.ErrInvalidMetricType
-			}
-			if err := s.repo.UpdateGauge(metric.ID, *metric.Value); err != nil {
-				return err
-			}
-		case models.Counter:
-			if metric.Delta == nil {
-				return models.ErrInvalidMetricType
-			}
-			if err := s.repo.UpdateCounter(metric.ID, *metric.Delta); err != nil {
-				return err
-			}
-		default:
-			return models.ErrInvalidMetricType
-		}
+
+	if err := s.repo.UpdateMetricsBatch(metrics); err != nil {
+		return err
 	}
 	return nil
 }

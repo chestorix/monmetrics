@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
@@ -74,18 +73,18 @@ func main() {
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
 	}
-	fmt.Println(cfg)
+	logger.Println(cfg)
 	if dbDSN != "" {
 		retryDelays := []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
-		err := utils.Retry(3, retryDelays, func() error {
-			pgStorage, err := repository.NewPostgresStorage(dbDSN)
+		pgStorage, err := repository.NewPostgresStorage(dbDSN)
+		err = utils.Retry(3, retryDelays, func() error {
 
 			if err != nil {
 				return err
 			}
 
 			storage = pgStorage
-			defer pgStorage.Close()
+
 			return nil
 		})
 		if err != nil {
@@ -93,6 +92,7 @@ func main() {
 		}
 
 		logger.Info("Using PostgreSQL storage")
+		defer pgStorage.Close()
 	} else if cfg.FileStoragePath != "" {
 		storage = repository.NewMemStorage(cfg.FileStoragePath)
 		logger.Info("Using file storage")

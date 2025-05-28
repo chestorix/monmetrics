@@ -232,6 +232,7 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.service.UpdateMetricsBatch(metrics); err != nil {
+
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}

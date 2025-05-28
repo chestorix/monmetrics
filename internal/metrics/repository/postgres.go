@@ -177,12 +177,14 @@ func (p *PostgresStorage) GetCounter(name string) (int64, bool, error) {
 
 func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 	p.mu.RLock()
+
 	defer p.mu.RUnlock()
 
 	var metrics []models.Metric
 
 	rows, err := p.db.Query("SELECT name, value FROM gauges")
 	if err != nil {
+		fmt.Printf("failed to query all gauges: %s\n", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -204,6 +206,7 @@ func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 	}
 	rows, err = p.db.Query("SELECT name, value FROM counters")
 	if err != nil {
+		fmt.Printf("failed to query all counters: %s\n", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -256,5 +259,5 @@ func checkError(err error) error {
 	if utils.IsNetworkError(err) {
 		return err
 	}
-	return utils.ErrMaxRetriesExceeded
+	return nil
 }
