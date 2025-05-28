@@ -9,6 +9,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"github.com/chestorix/monmetrics/internal/metrics/service"
+	"github.com/chestorix/monmetrics/internal/utils"
 	"github.com/sirupsen/logrus"
 	"log"
 	"os"
@@ -73,13 +74,24 @@ func main() {
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
 	}
+	fmt.Println(cfg)
 	if dbDSN != "" {
-		pgStorage, err := repository.NewPostgresStorage(dbDSN)
+		retryDelays := []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
+		err := utils.Retry(3, retryDelays, func() error {
+			pgStorage, err := repository.NewPostgresStorage(dbDSN)
+
+			if err != nil {
+				return err
+			}
+
+			storage = pgStorage
+			defer pgStorage.Close()
+			return nil
+		})
 		if err != nil {
-			logger.Fatalf("Failed to initialize PostgreSQL storage: %v", err)
+			logger.Fatalf("Failed to initialize PostgreSQL storage after retries: %v", err)
 		}
-		storage = pgStorage
-		defer pgStorage.Close()
+
 		logger.Info("Using PostgreSQL storage")
 	} else if cfg.FileStoragePath != "" {
 		storage = repository.NewMemStorage(cfg.FileStoragePath)
@@ -89,7 +101,6 @@ func main() {
 		logger.Info("Using in-memory storage")
 	}
 
-	fmt.Println(cfg)
 	if cfg.Restore && cfg.FileStoragePath != "" && dbDSN == "" {
 		if err := storage.Load(); err != nil {
 			logger.WithError(err).Error("Failed to load metrics from file")

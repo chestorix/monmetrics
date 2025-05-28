@@ -6,6 +6,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/metrics"
 	"github.com/chestorix/monmetrics/internal/metrics/collector"
 	"github.com/chestorix/monmetrics/internal/metrics/sender"
+	"github.com/chestorix/monmetrics/internal/utils"
 	"log"
 	"strings"
 	"time"
@@ -60,13 +61,20 @@ func startAgent(agentCfg config.AgentConfig) {
 				}
 				batch = append(batch, metric)
 			}
-			if err := sender.SendBatch(batch); err != nil {
-				log.Println("Failed to send batch:", err)
-				for _, metric := range lastMetrics {
-					if err := sender.SendJSON(metric); err != nil {
-						log.Println("Failed to send metric:", err)
+			retryDelays := []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
+
+			err := utils.Retry(3, retryDelays, func() error {
+				if err := sender.SendBatch(batch); err != nil {
+					for _, metric := range lastMetrics {
+						if err := sender.SendJSON(metric); err != nil {
+							return err
+						}
 					}
 				}
+				return nil
+			})
+			if err != nil {
+				log.Println("Failed to send metrics after retries:", err)
 			}
 		}
 	}
