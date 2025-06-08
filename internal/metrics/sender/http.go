@@ -15,15 +15,24 @@ type HTTPSender struct {
 	baseURL     string
 	client      *http.Client
 	retryDelays []time.Duration
+	key         string
 }
 
-func NewHTTPSender(baseURL string) *HTTPSender {
+func NewHTTPSender(baseURL string, key string) *HTTPSender {
 	return &HTTPSender{
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 5 * time.Second},
 		retryDelays: []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
+		key:         key,
 	}
 }
+func (s *HTTPSender) addHashHeader(req *http.Request, body []byte) {
+	if s.key != "" {
+		hash := utils.ComputeHmacSHA256(string(body), s.key)
+		req.Header.Set("HashSHA256", hash)
+	}
+}
+
 func (s *HTTPSender) Send(metric models.Metric) error {
 
 	return utils.Retry(3, s.retryDelays, func() error {
@@ -77,8 +86,14 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
+		req, err := http.NewRequest(http.MethodPost, s.baseURL+"/update/", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return utils.ErrMaxRetriesExceeded
+		}
+		req.Header.Set("Content-Type", "application/json")
+		s.addHashHeader(req, jsonData)
 
-		resp, err := s.client.Post(s.baseURL+"/update/", "application/json", bytes.NewBuffer(jsonData))
+		resp, err := s.client.Do(req)
 		if err != nil {
 			if utils.IsNetworkError(err) {
 				return err
@@ -121,6 +136,7 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
+		s.addHashHeader(req, buf.Bytes())
 
 		resp, err := s.client.Do(req)
 		if err != nil {

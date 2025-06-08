@@ -16,6 +16,7 @@ type cfg struct {
 	Address        string `env:"ADDRESS"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
+	Key            string `env:"KEY"`
 }
 
 func ensureHTTP(address string) string {
@@ -26,7 +27,7 @@ func ensureHTTP(address string) string {
 }
 func startAgent(agentCfg config.AgentConfig) {
 	collector := collector.NewRuntimeCollector()
-	sender := sender.NewHTTPSender(agentCfg.Address)
+	sender := sender.NewHTTPSender(agentCfg.Address, agentCfg.Key)
 
 	pollTicker := time.NewTicker(agentCfg.PollInterval)
 	reportTicker := time.NewTicker(agentCfg.ReportInterval)
@@ -86,6 +87,10 @@ func main() {
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
+	key := flagKey
+	if key == "" {
+		key = cfg.Key
+	}
 	address := cfg.Address
 	if address == "" {
 		address = flagRunAddr
@@ -105,6 +110,7 @@ func main() {
 		Address:        address,
 		PollInterval:   time.Duration(pollInterval) * time.Second,
 		ReportInterval: time.Duration(reportInterval) * time.Second,
+		Key:            key,
 	}
 	startAgent(agentCfg)
 }

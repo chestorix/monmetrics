@@ -14,15 +14,17 @@ type Server struct {
 	service interfaces.Service
 	server  *http.Server
 	logger  *logrus.Logger
+	key     string
 }
 
-func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logger *logrus.Logger) *Server {
-	router := NewRouter(logger)
+func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logger *logrus.Logger, key string) *Server {
+	router := NewRouter(logger, key)
 	return &Server{
 		cfg:     cfg,
 		service: metricService,
 		router:  router,
 		logger:  logger,
+		key:     key,
 	}
 }
 

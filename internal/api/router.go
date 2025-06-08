@@ -12,7 +12,7 @@ type Router struct {
 	logger *logrus.Logger
 }
 
-func NewRouter(logger *logrus.Logger) *Router {
+func NewRouter(logger *logrus.Logger, key string) *Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -20,6 +20,7 @@ func NewRouter(logger *logrus.Logger) *Router {
 	r.Use(middleware2.NewLoggerMiddleware(logger))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware2.GzipMiddleware)
+	r.Use(middleware2.HashCheckMiddleware(key))
 
 	return &Router{
 		Router: r,

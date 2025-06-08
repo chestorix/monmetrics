@@ -25,6 +25,7 @@ type cfg struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	Key             string `env:"KEY"`
 }
 
 func main() {
@@ -36,7 +37,10 @@ func main() {
 		log.Fatal("Failed to parse env vars:", err)
 	}
 	parseFlags()
-
+	key := flagKey
+	if key == "" {
+		key = conf.Key
+	}
 	serverAddress := conf.Address
 	if serverAddress == "" {
 		serverAddress = flagRunAddr
@@ -108,7 +112,7 @@ func main() {
 	}
 
 	metricService := service.NewService(storage)
-	server := api.NewServer(&cfg, metricService, logger)
+	server := api.NewServer(&cfg, metricService, logger, key)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

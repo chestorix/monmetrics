@@ -8,6 +8,7 @@ var (
 	flagFileStoragePath string
 	flagRestore         bool
 	flagConnDB          string
+	flagKey             string
 )
 
 func parseFlags() {
@@ -16,5 +17,6 @@ func parseFlags() {
 	flag.StringVar(&flagFileStoragePath, "f", "/tmp/metrics-db.json", "file path to save/load metrics")
 	flag.BoolVar(&flagRestore, "r", true, "whether to restore metrics from file on startup")
 	flag.StringVar(&flagConnDB, "d", "", "host=<host> user=<user> password=<password> dbname=<dbname> sslmode=<disable/enable>")
+	flag.StringVar(&flagKey, "k", "", "key for hash signature")
 	flag.Parse()
 }
