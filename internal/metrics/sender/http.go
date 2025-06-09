@@ -59,7 +59,6 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
-
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name
@@ -86,12 +85,17 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
-		req, err := http.NewRequest(http.MethodPost, s.baseURL+"/update/", bytes.NewBuffer(jsonData))
+
+		req, err := http.NewRequest("POST", s.baseURL+"/update/", bytes.NewBuffer(jsonData))
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 		req.Header.Set("Content-Type", "application/json")
-		s.addHashHeader(req, jsonData)
+
+		if s.key != "" {
+			hash := utils.ComputeHmacSHA256(string(jsonData), s.key)
+			req.Header.Set("HashSHA256", hash)
+		}
 
 		resp, err := s.client.Do(req)
 		if err != nil {

@@ -15,24 +15,31 @@ func HashCheckMiddleware(key string) func(http.Handler) http.Handler {
 				return
 			}
 
-			incomingHash := r.Header.Get("HashSHA256")
-			if incomingHash != "" {
-				body, err := io.ReadAll(r.Body)
-				if err != nil {
-					http.Error(w, "Bad request", http.StatusBadRequest)
-					return
-				}
-				r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-				computedHash := utils.ComputeHmacSHA256(string(body), key)
-				if incomingHash != computedHash {
-					http.Error(w, "Invalid hash", http.StatusBadRequest)
-					return
-				}
+			if r.Method == http.MethodGet || r.Body == nil {
+				next.ServeHTTP(w, r)
+				return
 			}
 
-			rw := &hashResponseWriter{ResponseWriter: w, key: key}
-			next.ServeHTTP(rw, r)
+			incomingHash := r.Header.Get("HashSHA256")
+			if incomingHash == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+			computedHash := utils.ComputeHmacSHA256(string(body), key)
+			if incomingHash != computedHash {
+				http.Error(w, "Invalid hash", http.StatusBadRequest)
+				return
+			}
+
+			next.ServeHTTP(w, r)
 		})
 	}
 }

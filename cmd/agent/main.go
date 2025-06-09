@@ -7,6 +7,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/metrics/collector"
 	"github.com/chestorix/monmetrics/internal/metrics/sender"
 	"github.com/chestorix/monmetrics/internal/utils"
+	"github.com/sirupsen/logrus"
 	"log"
 	"strings"
 	"time"
@@ -75,7 +76,7 @@ func startAgent(agentCfg config.AgentConfig) {
 				return nil
 			})
 			if err != nil {
-				log.Println("Failed to send metrics after retries:", err)
+				logrus.Info("Failed to send metrics after retries:", err)
 			}
 		}
 	}

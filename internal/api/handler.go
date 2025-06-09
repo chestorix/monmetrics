@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,14 +14,16 @@ import (
 type MetricsHandler struct {
 	service interfaces.Service
 	dbDNS   string
+	key     string
 }
 type jsonError struct {
 	Error string `json:"error"`
 }
 
-func NewMetricsHandler(service interfaces.Service, dbDNS string) *MetricsHandler {
+func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
 	return &MetricsHandler{service: service,
 		dbDNS: dbDNS,
+		key:   key,
 	}
 }
 
@@ -30,11 +33,12 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 
 	if len(parts) < 4 {
-		http.Error(w, "Invalid request", http.StatusNotFound)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -194,10 +198,19 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(foundMetric); err != nil {
+	responseData, err := json.Marshal(foundMetric)
+	if err != nil {
 		renderError(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
+
+	if h.key != "" {
+		hash := utils.ComputeHmacSHA256(string(responseData), h.key)
+		w.Header().Set("HashSHA256", hash)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseData)
 }
 
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +228,7 @@ func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 }
 func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
 	if r.Method != http.MethodPost {
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -232,12 +246,24 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.service.UpdateMetricsBatch(metrics); err != nil {
-
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	response := map[string]string{"status": "ok"}
+	responseData, err := json.Marshal(response)
+	if err != nil {
+		renderError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if h.key != "" {
+		hash := utils.ComputeHmacSHA256(string(responseData), h.key)
+		w.Header().Set("HashSHA256", hash)
+	}
+
 	w.WriteHeader(http.StatusOK)
+	w.Write(responseData)
 }
 func generateMetricsHTML(metrics []models.Metric) string {
 	var htmlBuilder strings.Builder
