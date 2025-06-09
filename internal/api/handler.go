@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type MetricsHandler struct {
@@ -25,6 +27,8 @@ func NewMetricsHandler(service interfaces.Service, dbDNS string) *MetricsHandler
 }
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -34,7 +38,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(path, "/")
 
 	if len(parts) < 4 {
-		http.Error(w, "Invalid request", http.StatusNotFound)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -48,7 +52,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid value for gauge", http.StatusBadRequest)
 			return
 		}
-		if err := h.service.UpdateGauge(metricName, value); err != nil {
+		if err := h.service.UpdateGauge(ctx, metricName, value); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -61,19 +65,19 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid value for counter", http.StatusBadRequest)
 			return
 		}
-		if err := h.service.UpdateCounter(metricName, value); err != nil {
+		if err := h.service.UpdateCounter(ctx, metricName, value); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Counter metric updated")
-
 	default:
 		http.Error(w, models.ErrInvalidMetricType.Error(), http.StatusBadRequest)
 	}
 }
 
 func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -91,7 +95,7 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 
 	switch metricType {
 	case models.Gauge:
-		value, err := h.service.GetGauge(metricName)
+		value, err := h.service.GetGauge(ctx, metricName)
 		if err != nil {
 			if err == models.ErrMetricNotFound {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -104,7 +108,7 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 		fmt.Fprint(w, value)
 
 	case models.Counter:
-		value, err := h.service.GetCounter(metricName)
+		value, err := h.service.GetCounter(ctx, metricName)
 		if err != nil {
 			if err == models.ErrMetricNotFound {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -122,13 +126,15 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	metrics, err := h.service.GetAll()
+	metrics, err := h.service.GetAll(ctx)
 	if err != nil {
 		http.Error(w, "Failed to get metrics", http.StatusInternalServerError)
 		return
@@ -140,6 +146,8 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
@@ -150,7 +158,7 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		renderError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	updateMetric, err := h.service.UpdateMetricJSON(metric)
+	updateMetric, err := h.service.UpdateMetricJSON(ctx, metric)
 	if err != nil {
 		switch err {
 		case models.ErrInvalidMetricType:
@@ -168,6 +176,8 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method != http.MethodPost {
@@ -181,7 +191,7 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	foundMetric, err := h.service.GetMetricJSON(metric)
+	foundMetric, err := h.service.GetMetricJSON(ctx, metric)
 	if err != nil {
 		switch err {
 		case models.ErrMetricNotFound:
@@ -201,12 +211,14 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	if h.dbDNS == "" {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	if err := h.service.CheckDB(h.dbDNS); err != nil {
+	if err := h.service.CheckDB(ctx, h.dbDNS); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -214,6 +226,8 @@ func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
+	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -231,7 +245,7 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.service.UpdateMetricsBatch(metrics); err != nil {
+	if err := h.service.UpdateMetricsBatch(ctx, metrics); err != nil {
 
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return

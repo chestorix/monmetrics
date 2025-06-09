@@ -100,18 +100,16 @@ func main() {
 		storage = repository.NewMemStorage("")
 		logger.Info("Using in-memory storage")
 	}
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if cfg.Restore && cfg.FileStoragePath != "" && dbDSN == "" {
-		if err := storage.Load(); err != nil {
+		if err := storage.Load(ctx); err != nil {
 			logger.WithError(err).Error("Failed to load metrics from file")
 		}
 	}
 
 	metricService := service.NewService(storage)
 	server := api.NewServer(&cfg, metricService, logger)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	if cfg.StoreInterval > 0 {
 		go func() {
@@ -121,7 +119,7 @@ func main() {
 			for {
 				select {
 				case <-ticker.C:
-					if err := storage.Save(); err != nil {
+					if err := storage.Save(ctx); err != nil {
 						logger.WithError(err).Error("Failed to save metrics")
 					}
 				case <-ctx.Done():
@@ -138,7 +136,7 @@ func main() {
 		<-sigChan
 		logger.Info("Shutting down server...")
 
-		if err := storage.Save(); err != nil {
+		if err := storage.Save(ctx); err != nil {
 			logger.WithError(err).Error("Failed to save metrics on shutdown")
 		}
 

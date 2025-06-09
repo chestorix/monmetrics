@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
@@ -24,9 +25,16 @@ func NewMemStorage(filePath string) interfaces.Repository {
 	}
 }
 
-func (m *MemStorage) Load() error {
+func (m *MemStorage) Load(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	file, err := os.ReadFile(m.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -46,7 +54,12 @@ func (m *MemStorage) Load() error {
 	return nil
 }
 
-func (m *MemStorage) Save() error {
+func (m *MemStorage) Save(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -71,34 +84,60 @@ func (m *MemStorage) Save() error {
 	return os.Rename(tmpFile, m.filePath)
 }
 
-func (m *MemStorage) UpdateGauge(name string, value float64) error {
+func (m *MemStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	m.mu.Lock()
 	m.Gauges[name] = value
 	m.mu.Unlock()
 	return nil
 }
-func (m *MemStorage) UpdateCounter(name string, value int64) error {
+func (m *MemStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	m.mu.Lock()
 	m.Counters[name] += value
 	m.mu.Unlock()
 	return nil
 }
 
-func (m *MemStorage) GetGauge(name string) (float64, bool, error) {
+func (m *MemStorage) GetGauge(ctx context.Context, name string) (float64, bool, error) {
+	select {
+	case <-ctx.Done():
+		return 0, false, ctx.Err()
+	default:
+	}
 	if value, ok := m.Gauges[name]; ok {
 		return value, true, nil
 	}
 	return 0, false, nil
 }
 
-func (m *MemStorage) GetCounter(name string) (int64, bool, error) {
+func (m *MemStorage) GetCounter(ctx context.Context, name string) (int64, bool, error) {
+	select {
+	case <-ctx.Done():
+		return 0, false, ctx.Err()
+	default:
+	}
 	if value, ok := m.Counters[name]; ok {
 		return value, true, nil
 	}
 	return 0, false, nil
 }
 
-func (m *MemStorage) GetAll() ([]models.Metric, error) {
+func (m *MemStorage) GetAll(ctx context.Context) ([]models.Metric, error) {
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	var metric []models.Metric
 
 	for name, value := range m.Gauges {
@@ -123,7 +162,13 @@ func (m *MemStorage) Close() error {
 	return nil
 }
 
-func (m *MemStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
+func (m *MemStorage) UpdateMetricsBatch(ctx context.Context, metrics []models.Metrics) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

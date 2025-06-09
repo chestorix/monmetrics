@@ -57,11 +57,11 @@ func createTables(db *sql.DB) error {
 	return err
 }
 
-func (p *PostgresStorage) UpdateGauge(name string, value float64) error {
+func (p *PostgresStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		_, err := p.db.Exec(`
+		_, err := p.db.ExecContext(ctx, `
 		INSERT INTO gauges (name, value)
 		VALUES ($1, $2)
 		ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value
@@ -72,11 +72,11 @@ func (p *PostgresStorage) UpdateGauge(name string, value float64) error {
 	return err
 }
 
-func (p *PostgresStorage) UpdateCounter(name string, value int64) error {
+func (p *PostgresStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		_, err := p.db.Exec(`
+		_, err := p.db.ExecContext(ctx, `
 		INSERT INTO counters (name, value)
 		VALUES ($1, $2)
 		ON CONFLICT (name) DO UPDATE SET value = counters.value + EXCLUDED.value
@@ -86,12 +86,12 @@ func (p *PostgresStorage) UpdateCounter(name string, value int64) error {
 	return err
 
 }
-func (p *PostgresStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
+func (p *PostgresStorage) UpdateMetricsBatch(ctx context.Context, metrics []models.Metrics) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		tx, err := p.db.Begin()
+		tx, err := p.db.BeginTx(ctx, nil)
 		if err != nil {
 			return checkError(fmt.Errorf("failed to begin transaction: %w", err))
 		}
@@ -145,12 +145,12 @@ func (p *PostgresStorage) UpdateMetricsBatch(metrics []models.Metrics) error {
 
 	return err
 }
-func (p *PostgresStorage) GetGauge(name string) (float64, bool, error) {
+func (p *PostgresStorage) GetGauge(ctx context.Context, name string) (float64, bool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	var value float64
-	err := p.db.QueryRow("SELECT value FROM gauges WHERE name = $1", name).Scan(&value)
+	err := p.db.QueryRowContext(ctx, "SELECT value FROM gauges WHERE name = $1", name).Scan(&value)
 	if err == sql.ErrNoRows {
 		return 0, false, nil
 	}
@@ -160,12 +160,12 @@ func (p *PostgresStorage) GetGauge(name string) (float64, bool, error) {
 	return value, true, nil
 }
 
-func (p *PostgresStorage) GetCounter(name string) (int64, bool, error) {
+func (p *PostgresStorage) GetCounter(ctx context.Context, name string) (int64, bool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	var value int64
-	err := p.db.QueryRow("SELECT value FROM counters WHERE name = $1", name).Scan(&value)
+	err := p.db.QueryRowContext(ctx, "SELECT value FROM counters WHERE name = $1", name).Scan(&value)
 	if err == sql.ErrNoRows {
 		return 0, false, nil
 	}
@@ -175,14 +175,14 @@ func (p *PostgresStorage) GetCounter(name string) (int64, bool, error) {
 	return value, true, nil
 }
 
-func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
+func (p *PostgresStorage) GetAll(ctx context.Context) ([]models.Metric, error) {
 	p.mu.RLock()
 
 	defer p.mu.RUnlock()
 
 	var metrics []models.Metric
 
-	rows, err := p.db.Query("SELECT name, value FROM gauges")
+	rows, err := p.db.QueryContext(ctx, "SELECT name, value FROM gauges")
 	if err != nil {
 		fmt.Printf("failed to query all gauges: %s\n", err)
 		return nil, err
@@ -229,12 +229,15 @@ func (p *PostgresStorage) GetAll() ([]models.Metric, error) {
 	return metrics, nil
 }
 
-func (p *PostgresStorage) Save() error {
+func (p *PostgresStorage) Save(ctx context.Context) error {
+	ctx.Done()
 	return nil
 }
 
-func (p *PostgresStorage) Load() error {
+func (p *PostgresStorage) Load(ctx context.Context) error {
+	ctx.Done()
 	return nil
+
 }
 
 func (p *PostgresStorage) Close() error {
