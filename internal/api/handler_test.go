@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"github.com/chestorix/monmetrics/internal/metrics"
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type MockMetricsService struct {
@@ -26,17 +28,32 @@ func NewMockMetricsService() *MockMetricsService {
 	}
 }
 
-func (m *MockMetricsService) UpdateGauge(name string, value float64) error {
+func (m *MockMetricsService) UpdateGauge(ctx context.Context, name string, value float64) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	m.gaugeValues[name] = value
 	return nil
 }
 
-func (m *MockMetricsService) UpdateCounter(name string, value int64) error {
+func (m *MockMetricsService) UpdateCounter(ctx context.Context, name string, value int64) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	m.counterValues[name] += value
 	return nil
 }
 
-func (m *MockMetricsService) GetGauge(name string) (float64, error) {
+func (m *MockMetricsService) GetGauge(ctx context.Context, name string) (float64, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
 	val, ok := m.gaugeValues[name]
 	if !ok {
 		return 0, models.ErrMetricNotFound
@@ -44,7 +61,12 @@ func (m *MockMetricsService) GetGauge(name string) (float64, error) {
 	return val, nil
 }
 
-func (m *MockMetricsService) GetCounter(name string) (int64, error) {
+func (m *MockMetricsService) GetCounter(ctx context.Context, name string) (int64, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
 	val, ok := m.counterValues[name]
 	if !ok {
 		return 0, models.ErrMetricNotFound
@@ -52,7 +74,12 @@ func (m *MockMetricsService) GetCounter(name string) (int64, error) {
 	return val, nil
 }
 
-func (m *MockMetricsService) GetAll() ([]models.Metric, error) {
+func (m *MockMetricsService) GetAll(ctx context.Context) ([]models.Metric, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	if m.getAllError {
 		return nil, errors.New("mock error")
 	}
@@ -75,14 +102,18 @@ func (m *MockMetricsService) GetAll() ([]models.Metric, error) {
 	return metric, nil
 }
 
-func (m *MockMetricsService) UpdateMetricJSON(metric models.Metrics) (models.Metrics, error) {
+func (m *MockMetricsService) UpdateMetricJSON(ctx context.Context, metric models.Metrics) (models.Metrics, error) {
+	select {
+	case <-ctx.Done():
+		return models.Metrics{}, ctx.Err()
+	default:
+	}
 	switch metric.MType {
 	case models.Gauge:
 		if metric.Value == nil {
 			return metric, models.ErrInvalidMetricType
 		}
 		m.gaugeValues[metric.ID] = *metric.Value
-		// Возвращаем обновленную метрику
 		return models.Metrics{
 			ID:    metric.ID,
 			MType: metric.MType,
@@ -104,7 +135,13 @@ func (m *MockMetricsService) UpdateMetricJSON(metric models.Metrics) (models.Met
 	}
 }
 
-func (m *MockMetricsService) GetMetricJSON(metric models.Metrics) (models.Metrics, error) {
+func (m *MockMetricsService) GetMetricJSON(ctx context.Context, metric models.Metrics) (models.Metrics, error) {
+	select {
+	case <-ctx.Done():
+		return models.Metrics{}, ctx.Err()
+	default:
+	}
+
 	switch metric.MType {
 	case models.Gauge:
 		val, ok := m.gaugeValues[metric.ID]
@@ -136,7 +173,12 @@ func (m *MockMetricsService) GetMetricJSON(metric models.Metrics) (models.Metric
 		return metric, models.ErrInvalidMetricType
 	}
 }
-func (m *MockMetricsService) CheckDB(ps string) error {
+func (m *MockMetricsService) CheckDB(ctx context.Context, ps string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	if ps == "" {
 		return nil // Пустой DSN - считаем что БД не используется
 	}
@@ -198,7 +240,8 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 			},
 		},
 	}
-
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
@@ -239,7 +282,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			name: "get existing gauge",
 			url:  "/value/gauge/test_gauge",
 			prepare: func(service *MockMetricsService) {
-				service.UpdateGauge("test_gauge", 123.45)
+				service.UpdateGauge(ctx, "test_gauge", 123.45)
 			},
 			want: want{
 				code:        http.StatusOK,
