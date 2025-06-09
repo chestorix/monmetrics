@@ -6,7 +6,6 @@ import (
 	"github.com/chestorix/monmetrics/internal/metrics"
 	"github.com/chestorix/monmetrics/internal/metrics/collector"
 	"github.com/chestorix/monmetrics/internal/metrics/sender"
-	"github.com/chestorix/monmetrics/internal/utils"
 	"github.com/sirupsen/logrus"
 	"log"
 	"strings"
@@ -35,18 +34,16 @@ func startAgent(agentCfg config.AgentConfig) {
 	defer pollTicker.Stop()
 	defer reportTicker.Stop()
 
-	var lastMetrics []models.Metric
+	//var lastMetrics []models.Metric
+	var metricsBatch []models.Metrics
 
 	for {
 		select {
 		case <-pollTicker.C:
-			lastMetrics = collector.Collect()
-		case <-reportTicker.C:
-			if lastMetrics == nil {
-				continue
-			}
-			var batch []models.Metrics
-			for _, m := range lastMetrics {
+
+			metrics := collector.Collect()
+			metricsBatch = nil
+			for _, m := range metrics {
 				metric := models.Metrics{
 					ID:    m.Name,
 					MType: m.Type,
@@ -61,22 +58,30 @@ func startAgent(agentCfg config.AgentConfig) {
 						metric.Delta = &val
 					}
 				}
-				batch = append(batch, metric)
+				metricsBatch = append(metricsBatch, metric)
 			}
-			retryDelays := []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
+		case <-reportTicker.C:
+			if len(metricsBatch) == 0 {
+				continue
+			}
+			err := sender.SendBatch(metricsBatch)
+			if err != nil {
+				logrus.Info("Batch send failed, falling back to individual sends:", err)
 
-			err := utils.Retry(3, retryDelays, func() error {
-				if err := sender.SendBatch(batch); err != nil {
-					for _, metric := range lastMetrics {
-						if err := sender.SendJSON(metric); err != nil {
-							return err
-						}
+				for _, metric := range metricsBatch {
+					if err := sender.SendJSON(models.Metric{
+						Name: metric.ID,
+						Type: metric.MType,
+						Value: func() interface{} {
+							if metric.MType == models.Gauge {
+								return *metric.Value
+							}
+							return *metric.Delta
+						}(),
+					}); err != nil {
+						logrus.Info("Failed to send metric:", metric.ID, "error:", err)
 					}
 				}
-				return nil
-			})
-			if err != nil {
-				logrus.Info("Failed to send metrics after retries:", err)
 			}
 		}
 	}
