@@ -19,6 +19,7 @@ type MockMetricsService struct {
 	counterValues map[string]int64
 	getAllError   bool
 	checkDBError  bool
+	ctx           context.Context
 }
 
 func NewMockMetricsService() *MockMetricsService {
@@ -188,7 +189,7 @@ func (m *MockMetricsService) CheckDB(ctx context.Context, ps string) error {
 	return nil
 }
 
-func (m *MockMetricsService) UpdateMetricsBatch(metrics []models.Metrics) error {
+func (m *MockMetricsService) UpdateMetricsBatch(ctx context.Context, metrics []models.Metrics) error {
 	return nil
 }
 
@@ -240,8 +241,7 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 			},
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
@@ -267,6 +267,8 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 }
 
 func TestMetricsHandler_GetValuesHandler(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	type want struct {
 		code        int
 		response    string
@@ -304,7 +306,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			name: "get existing counter",
 			url:  "/value/counter/test_counter",
 			prepare: func(service *MockMetricsService) {
-				service.UpdateCounter("test_counter", 42)
+				service.UpdateCounter(ctx, "test_counter", 42)
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -351,6 +353,8 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 }
 
 func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	tests := []struct {
 		name       string
 		prepare    func(service *MockMetricsService)
@@ -361,8 +365,8 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 		{
 			name: "success with metrics",
 			prepare: func(service *MockMetricsService) {
-				service.UpdateGauge("alloc", 123.45)
-				service.UpdateCounter("requests", 42)
+				service.UpdateGauge(ctx, "alloc", 123.45)
+				service.UpdateCounter(ctx, "requests", 42)
 			},
 			wantCode: http.StatusOK,
 			wantInBody: []string{
@@ -479,6 +483,8 @@ func TestMetricsHandler_UpdateJSONHandler(t *testing.T) {
 }
 
 func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	tests := []struct {
 		name         string
 		prepare      func(*MockMetricsService)
@@ -489,7 +495,7 @@ func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
 		{
 			name: "get existing gauge",
 			prepare: func(s *MockMetricsService) {
-				s.UpdateGauge("temperature", 23.5)
+				s.UpdateGauge(ctx, "temperature", 23.5)
 			},
 			payload:      `{"id":"temperature","type":"gauge"}`,
 			wantStatus:   http.StatusOK,

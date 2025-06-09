@@ -70,6 +70,7 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Counter metric updated")
 	default:
 		http.Error(w, models.ErrInvalidMetricType.Error(), http.StatusBadRequest)
 	}
