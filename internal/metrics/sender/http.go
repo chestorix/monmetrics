@@ -114,7 +114,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
-
 	return utils.Retry(3, s.retryDelays, func() error {
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {
@@ -136,7 +135,7 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
-		s.addHashHeader(req, buf.Bytes())
+		s.addHashHeader(req, jsonData)
 
 		resp, err := s.client.Do(req)
 		if err != nil {
