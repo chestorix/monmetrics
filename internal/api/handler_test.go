@@ -202,7 +202,7 @@ func TestMetricsHandler_UpdateHandler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
-			handler := NewMetricsHandler(mockService, "")
+			handler := NewMetricsHandler(mockService, "", "")
 
 			request := httptest.NewRequest(http.MethodPost, test.url, nil)
 			w := httptest.NewRecorder()
@@ -286,7 +286,7 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 			if test.prepare != nil {
 				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService, "")
+			handler := NewMetricsHandler(mockService, "", "")
 
 			request := httptest.NewRequest(http.MethodGet, test.url, nil)
 			w := httptest.NewRecorder()
@@ -357,7 +357,7 @@ func TestMetricsHandler_GetAllMetricsHandler(t *testing.T) {
 			if test.prepare != nil {
 				test.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService, "")
+			handler := NewMetricsHandler(mockService, "", "")
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -414,7 +414,7 @@ func TestMetricsHandler_UpdateJSONHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := NewMockMetricsService()
-			handler := NewMetricsHandler(mockService, "")
+			handler := NewMetricsHandler(mockService, "", "")
 
 			req := httptest.NewRequest(http.MethodPost, "/update/", strings.NewReader(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
@@ -473,7 +473,7 @@ func TestMetricsHandler_ValueJSONHandler(t *testing.T) {
 			if tt.prepare != nil {
 				tt.prepare(mockService)
 			}
-			handler := NewMetricsHandler(mockService, "")
+			handler := NewMetricsHandler(mockService, "", "")
 
 			req := httptest.NewRequest(http.MethodPost, "/value/", strings.NewReader(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
@@ -524,7 +524,7 @@ func TestMetricsHandler_PingHandler(t *testing.T) {
 			mockService := NewMockMetricsService()
 			mockService.checkDBError = tt.mockError
 
-			handler := NewMetricsHandler(mockService, tt.dbDNS)
+			handler := NewMetricsHandler(mockService, tt.dbDNS, "")
 
 			req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 			w := httptest.NewRecorder()
