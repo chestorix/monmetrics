@@ -76,6 +76,7 @@ func main() {
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
+		Key:             key,
 	}
 	logger.Println(cfg)
 	if dbDSN != "" {
