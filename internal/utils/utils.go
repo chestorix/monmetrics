@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net"
 	"time"
@@ -36,4 +39,13 @@ func Retry(attempts int, delays []time.Duration, fn func() error) error {
 func IsNetworkError(err error) bool {
 	var netErr net.Error
 	return errors.As(err, &netErr)
+}
+
+func CalculateHash(data []byte, key string) string {
+	if key == "" {
+		return ""
+	}
+	h := hmac.New(sha256.New, []byte(key))
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }

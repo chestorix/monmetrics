@@ -15,15 +15,27 @@ type HTTPSender struct {
 	baseURL     string
 	client      *http.Client
 	retryDelays []time.Duration
+	key         string
 }
 
-func NewHTTPSender(baseURL string) *HTTPSender {
+func NewHTTPSender(baseURL string, key string) *HTTPSender {
 	return &HTTPSender{
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 5 * time.Second},
 		retryDelays: []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
+		key:         key,
 	}
 }
+
+/*func (s *HTTPSender) calculateHash(data []byte) string {
+	if s.key == "" {
+		return ""
+	}
+	h := hmac.New(sha256.New, []byte(s.key))
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
+}*/
+
 func (s *HTTPSender) Send(metric models.Metric) error {
 
 	return utils.Retry(3, s.retryDelays, func() error {
@@ -77,8 +89,15 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
-
-		resp, err := s.client.Post(s.baseURL+"/update/", "application/json", bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", s.baseURL+"/update/", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return utils.ErrMaxRetriesExceeded
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
+			req.Header.Set("HashSHA256", hash)
+		}
+		resp, err := s.client.Do(req)
 		if err != nil {
 			if utils.IsNetworkError(err) {
 				return err
@@ -86,6 +105,14 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 		defer resp.Body.Close()
+		/*	//	resp, err := s.client.Post(s.baseURL+"/update/", "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				if utils.IsNetworkError(err) {
+					return err
+				}
+				return utils.ErrMaxRetriesExceeded
+			}
+			defer resp.Body.Close()*/
 
 		if resp.StatusCode >= 500 {
 			return fmt.Errorf("server error: %d", resp.StatusCode)
@@ -121,7 +148,9 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
-
+		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
+			req.Header.Set("HashSHA256", hash)
+		}
 		resp, err := s.client.Do(req)
 		if err != nil {
 			if utils.IsNetworkError(err) {

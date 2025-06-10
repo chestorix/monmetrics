@@ -25,6 +25,7 @@ type cfg struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	SecretKey       string `env:"KEY"`
 }
 
 func main() {
@@ -36,7 +37,10 @@ func main() {
 		log.Fatal("Failed to parse env vars:", err)
 	}
 	parseFlags()
-
+	key := conf.SecretKey
+	if conf.SecretKey == "" {
+		key = flagKey
+	}
 	serverAddress := conf.Address
 	if serverAddress == "" {
 		serverAddress = flagRunAddr
@@ -72,6 +76,7 @@ func main() {
 		FileStoragePath: fileStoragePath,
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
+		Key:             key,
 	}
 	logger.Println(cfg)
 	if dbDSN != "" {

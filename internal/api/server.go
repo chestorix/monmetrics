@@ -14,6 +14,7 @@ type Server struct {
 	service interfaces.Service
 	server  *http.Server
 	logger  *logrus.Logger
+	key     string
 }
 
 func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logger *logrus.Logger) *Server {
@@ -23,11 +24,12 @@ func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logge
 		service: metricService,
 		router:  router,
 		logger:  logger,
+		key:     cfg.Key,
 	}
 }
 
 func (s *Server) Start() error {
-	handler := NewMetricsHandler(s.service, s.cfg.DatabaseDSN)
+	handler := NewMetricsHandler(s.service, s.cfg.DatabaseDSN, s.key)
 	s.router.SetupRoutes(handler)
 
 	httpServer := &http.Server{

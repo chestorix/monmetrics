@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
 	"encoding/json"
 	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/utils"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,15 +18,33 @@ import (
 type MetricsHandler struct {
 	service interfaces.Service
 	dbDNS   string
+	key     string
 }
 type jsonError struct {
 	Error string `json:"error"`
 }
 
-func NewMetricsHandler(service interfaces.Service, dbDNS string) *MetricsHandler {
+func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
 	return &MetricsHandler{service: service,
 		dbDNS: dbDNS,
+		key:   key,
 	}
+}
+
+func (h *MetricsHandler) checkHash(r *http.Request, data []byte) bool {
+	if h.key == "" {
+		return true
+	}
+
+	receivedHash := r.Header.Get("HashSHA256")
+	fmt.Println("HASH", receivedHash)
+	if receivedHash == "" {
+		return false
+	}
+
+	expectedHash := utils.CalculateHash(data, h.key)
+	fmt.Println("HASH CHECK", expectedHash, hmac.Equal([]byte(expectedHash), []byte(receivedHash)))
+	return hmac.Equal([]byte(expectedHash), []byte(receivedHash))
 }
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -151,14 +172,26 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error": "Method not allowed"}`, http.StatusMethodNotAllowed)
+		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		renderError(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if !h.checkHash(r, body) {
+		renderError(w, "Invalid hash", http.StatusBadRequest)
+		return
+	}
+
 	var metric models.Metrics
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+	if err := json.Unmarshal(body, &metric); err != nil {
 		renderError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+
 	updateMetric, err := h.service.UpdateMetricJSON(ctx, metric)
 	if err != nil {
 		switch err {
@@ -175,7 +208,6 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		renderError(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
-
 func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -235,9 +267,23 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	var reader io.Reader = r.Body
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+
+		renderError(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	if !h.checkHash(r, body) {
+		renderError(w, "Invalid hash", http.StatusBadRequest)
+		return
+	}
+
 	var metrics []models.Metrics
-	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
-		renderError(w, "Invalid JSON", http.StatusBadRequest)
+	if err := json.Unmarshal(body, &metrics); err != nil {
+		renderError(w, fmt.Sprintf("Invalid JSON: %v\nBody: %s", err, string(body)), http.StatusBadRequest)
 		return
 	}
 
@@ -247,7 +293,6 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.service.UpdateMetricsBatch(ctx, metrics); err != nil {
-
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}
