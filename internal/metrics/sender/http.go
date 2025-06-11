@@ -62,7 +62,6 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
-
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name
@@ -89,14 +88,20 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
+
 		req, err := http.NewRequest("POST", s.baseURL+"/update/", bytes.NewBuffer(jsonData))
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
+
 		req.Header.Set("Content-Type", "application/json")
-		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
+
+		// Добавляем хеш, если ключ установлен
+		if s.key != "" {
+			hash := utils.CalculateHash(jsonData, s.key)
 			req.Header.Set("HashSHA256", hash)
 		}
+
 		resp, err := s.client.Do(req)
 		if err != nil {
 			if utils.IsNetworkError(err) {
@@ -105,14 +110,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 		defer resp.Body.Close()
-		/*	//	resp, err := s.client.Post(s.baseURL+"/update/", "application/json", bytes.NewBuffer(jsonData))
-			if err != nil {
-				if utils.IsNetworkError(err) {
-					return err
-				}
-				return utils.ErrMaxRetriesExceeded
-			}
-			defer resp.Body.Close()*/
 
 		if resp.StatusCode >= 500 {
 			return fmt.Errorf("server error: %d", resp.StatusCode)

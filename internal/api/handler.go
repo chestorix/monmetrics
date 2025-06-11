@@ -178,14 +178,19 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	if h.key != "" {
-		check, hash := h.checkHash(r, body)
 
-		if !check {
+	if h.key != "" {
+		receivedHash := r.Header.Get("HashSHA256")
+		if receivedHash == "" {
+			renderError(w, "Hash header is required", http.StatusBadRequest)
+			return
+		}
+
+		expectedHash := utils.CalculateHash(body, h.key)
+		if !hmac.Equal([]byte(expectedHash), []byte(receivedHash)) {
 			renderError(w, "Invalid hash", http.StatusBadRequest)
 			return
 		}
-		w.Header().Set("HashSHA256", hash)
 	}
 
 	var metric models.Metrics
@@ -205,10 +210,19 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(updateMetric); err != nil {
+	responseBody, err := json.Marshal(updateMetric)
+	if err != nil {
 		renderError(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
+
+	if h.key != "" {
+		hash := utils.CalculateHash(responseBody, h.key)
+		w.Header().Set("HashSHA256", hash)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseBody)
 }
 func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
