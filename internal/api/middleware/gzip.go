@@ -16,7 +16,7 @@ var gzPool = sync.Pool{
 
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
+		// Распаковка входящего gzip (если есть)
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			gz, err := gzip.NewReader(r.Body)
 			if err != nil {
@@ -27,31 +27,26 @@ func GzipMiddleware(next http.Handler) http.Handler {
 			r.Body = gz
 		}
 
+		// Проверяем, поддерживает ли клиент gzip
 		acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 		if !acceptsGzip {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		contentType := r.Header.Get("Content-Type")
-		shouldNotCompress := strings.Contains(contentType, "text/plain") &&
-			!strings.Contains(contentType, "text/html")
-
-		if shouldNotCompress {
-			next.ServeHTTP(w, r)
-			return
-		}
-
+		// Создаём gzip.Writer
 		gz := gzPool.Get().(*gzip.Writer)
 		defer gzPool.Put(gz)
 		gz.Reset(w)
 		defer gz.Close()
 
+		// Устанавливаем заголовки
 		w.Header().Set("Content-Encoding", "gzip")
-		w.Header().Add("Vary", "Accept-Encoding")
+		w.Header().Set("Vary", "Accept-Encoding")
+		w.Header().Del("Content-Length") // Важно! Удаляем старый Content-Length
 
-		grw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		next.ServeHTTP(grw, r)
+		// Передаём управление следующему обработчику
+		next.ServeHTTP(&gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
 	})
 }
 
