@@ -182,14 +182,12 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 	if h.key != "" {
 		receivedHash := r.Header.Get("HashSHA256")
 		if receivedHash == "" {
-			renderError(w, "Hash header is required", http.StatusBadRequest)
-			return
-		}
-
-		expectedHash := utils.CalculateHash(body, h.key)
-		if !hmac.Equal([]byte(expectedHash), []byte(receivedHash)) {
-			renderError(w, "Invalid hash", http.StatusBadRequest)
-			return
+		} else {
+			expectedHash := utils.CalculateHash(body, h.key)
+			if !hmac.Equal([]byte(expectedHash), []byte(receivedHash)) {
+				renderError(w, "Invalid hash", http.StatusBadRequest)
+				return
+			}
 		}
 	}
 

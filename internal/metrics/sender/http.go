@@ -96,7 +96,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 
 		req.Header.Set("Content-Type", "application/json")
 
-		// Добавляем хеш, если ключ установлен
 		if s.key != "" {
 			hash := utils.CalculateHash(jsonData, s.key)
 			req.Header.Set("HashSHA256", hash)
