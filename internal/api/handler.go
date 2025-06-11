@@ -31,20 +31,17 @@ func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *Me
 	}
 }
 
-func (h *MetricsHandler) checkHash(r *http.Request, data []byte) bool {
-	if h.key == "" {
-		return true
-	}
+func (h *MetricsHandler) checkHash(r *http.Request, data []byte) (bool, string) {
 
 	receivedHash := r.Header.Get("HashSHA256")
 	fmt.Println("HASH", receivedHash)
 	if receivedHash == "" {
-		return false
+		return false, ""
 	}
 
 	expectedHash := utils.CalculateHash(data, h.key)
 	fmt.Println("HASH CHECK", expectedHash, hmac.Equal([]byte(expectedHash), []byte(receivedHash)))
-	return hmac.Equal([]byte(expectedHash), []byte(receivedHash))
+	return hmac.Equal([]byte(expectedHash), []byte(receivedHash)), expectedHash
 }
 
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -181,9 +178,14 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	if !h.checkHash(r, body) {
-		renderError(w, "Invalid hash", http.StatusBadRequest)
-		return
+	if h.key != "" {
+		check, hash := h.checkHash(r, body)
+
+		if !check {
+			renderError(w, "Invalid hash", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("HashSHA256", hash)
 	}
 
 	var metric models.Metrics
@@ -276,9 +278,14 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if !h.checkHash(r, body) {
-		renderError(w, "Invalid hash", http.StatusBadRequest)
-		return
+	if h.key != "" {
+		check, hash := h.checkHash(r, body)
+
+		if !check {
+			renderError(w, "Invalid hash", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("HashSHA256", hash)
 	}
 
 	var metrics []models.Metrics
