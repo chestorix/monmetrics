@@ -34,24 +34,21 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		}
 
 		contentType := r.Header.Get("Content-Type")
-		shouldNotCompress := strings.Contains(contentType, "text/plain") &&
-			!strings.Contains(contentType, "text/html")
+		if contentType == "application/json" || contentType == "text/html" {
+			gz := gzPool.Get().(*gzip.Writer)
+			defer gzPool.Put(gz)
+			gz.Reset(w)
+			defer gz.Close()
 
-		if shouldNotCompress {
-			next.ServeHTTP(w, r)
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Add("Vary", "Accept-Encoding")
+
+			grw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
+			next.ServeHTTP(grw, r)
 			return
 		}
 
-		gz := gzPool.Get().(*gzip.Writer)
-		defer gzPool.Put(gz)
-		gz.Reset(w)
-		defer gz.Close()
-
-		w.Header().Set("Content-Encoding", "gzip")
-		w.Header().Add("Vary", "Accept-Encoding")
-
-		grw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		next.ServeHTTP(grw, r)
+		next.ServeHTTP(w, r)
 	})
 }
 
