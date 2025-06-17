@@ -36,7 +36,7 @@ func (s *Server) Start() error {
 		Addr:    s.cfg.Address,
 		Handler: s.router,
 	}
-	s.logger.Println("Server listened address: ", s.cfg.Address)
+	s.logger.Infoln("Server listened address: ", s.cfg.Address)
 
 	return httpServer.ListenAndServe()
 

@@ -10,13 +10,11 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"sync"
 	"time"
 )
 
 type PostgresStorage struct {
 	db          *sql.DB
-	mu          sync.RWMutex
 	dbDSN       string
 	retryDelays []time.Duration
 }
@@ -59,8 +57,6 @@ func createTables(db *sql.DB) error {
 
 func (p *PostgresStorage) UpdateGauge(ctx context.Context, name string, value float64) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
-		p.mu.Lock()
-		defer p.mu.Unlock()
 		_, err := p.db.ExecContext(ctx, `
 		INSERT INTO gauges (name, value)
 		VALUES ($1, $2)
@@ -74,8 +70,6 @@ func (p *PostgresStorage) UpdateGauge(ctx context.Context, name string, value fl
 
 func (p *PostgresStorage) UpdateCounter(ctx context.Context, name string, value int64) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
-		p.mu.Lock()
-		defer p.mu.Unlock()
 		_, err := p.db.ExecContext(ctx, `
 		INSERT INTO counters (name, value)
 		VALUES ($1, $2)
@@ -88,8 +82,6 @@ func (p *PostgresStorage) UpdateCounter(ctx context.Context, name string, value 
 }
 func (p *PostgresStorage) UpdateMetricsBatch(ctx context.Context, metrics []models.Metrics) error {
 	err := utils.Retry(3, p.retryDelays, func() error {
-		p.mu.Lock()
-		defer p.mu.Unlock()
 
 		tx, err := p.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -146,8 +138,6 @@ func (p *PostgresStorage) UpdateMetricsBatch(ctx context.Context, metrics []mode
 	return err
 }
 func (p *PostgresStorage) GetGauge(ctx context.Context, name string) (float64, bool, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
 
 	var value float64
 	err := p.db.QueryRowContext(ctx, "SELECT value FROM gauges WHERE name = $1", name).Scan(&value)
@@ -161,8 +151,6 @@ func (p *PostgresStorage) GetGauge(ctx context.Context, name string) (float64, b
 }
 
 func (p *PostgresStorage) GetCounter(ctx context.Context, name string) (int64, bool, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
 
 	var value int64
 	err := p.db.QueryRowContext(ctx, "SELECT value FROM counters WHERE name = $1", name).Scan(&value)
@@ -176,9 +164,6 @@ func (p *PostgresStorage) GetCounter(ctx context.Context, name string) (int64, b
 }
 
 func (p *PostgresStorage) GetAll(ctx context.Context) ([]models.Metric, error) {
-	p.mu.RLock()
-
-	defer p.mu.RUnlock()
 
 	var metrics []models.Metric
 

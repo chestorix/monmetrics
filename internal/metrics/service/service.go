@@ -28,7 +28,10 @@ func (s *MetricsService) UpdateCounter(ctx context.Context, name string, value i
 }
 
 func (s *MetricsService) GetGauge(ctx context.Context, name string) (float64, error) {
-	value, exists, _ := s.repo.GetGauge(ctx, name)
+	value, exists, err := s.repo.GetGauge(ctx, name)
+	if err != nil {
+		return 0, err
+	}
 	if !exists {
 		return 0, models.ErrMetricNotFound
 	}
