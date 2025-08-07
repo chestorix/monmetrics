@@ -2,6 +2,13 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
@@ -10,12 +17,6 @@ import (
 	"github.com/chestorix/monmetrics/internal/metrics/service"
 	"github.com/chestorix/monmetrics/internal/utils"
 	"github.com/sirupsen/logrus"
-	"log"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
 )
 
 // test commit

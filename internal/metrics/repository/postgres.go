@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	models "github.com/chestorix/monmetrics/internal/metrics"
 	"github.com/chestorix/monmetrics/internal/utils"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"time"
 )
 
 type PostgresStorage struct {

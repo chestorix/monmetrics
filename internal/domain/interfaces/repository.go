@@ -2,7 +2,8 @@ package interfaces
 
 import (
 	"context"
-	"github.com/chestorix/monmetrics/internal/metrics"
+
+	models "github.com/chestorix/monmetrics/internal/metrics"
 )
 
 type Repository interface {

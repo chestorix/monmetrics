@@ -1,12 +1,13 @@
 package api
 
 import (
+	"net/http"
+	"net/http/pprof"
+
 	middleware2 "github.com/chestorix/monmetrics/internal/api/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sirupsen/logrus"
-	"net/http"
-	"net/http/pprof"
 )
 
 type Router struct {

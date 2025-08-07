@@ -1,9 +1,10 @@
 package collector
 
 import (
-	"github.com/chestorix/monmetrics/internal/metrics"
 	"math/rand"
 	"runtime"
+
+	models "github.com/chestorix/monmetrics/internal/metrics"
 )
 
 type RuntimeCollector struct {

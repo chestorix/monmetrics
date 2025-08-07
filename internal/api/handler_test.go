@@ -3,15 +3,16 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/chestorix/monmetrics/internal/metrics"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	models "github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type MockMetricsService struct {

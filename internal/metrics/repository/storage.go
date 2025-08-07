@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/chestorix/monmetrics/internal/domain/interfaces"
-	"github.com/chestorix/monmetrics/internal/metrics"
 	"os"
 	"sync"
+
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
+	models "github.com/chestorix/monmetrics/internal/metrics"
 )
 
 type MemStorage struct {

@@ -5,10 +5,11 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	models "github.com/chestorix/monmetrics/internal/metrics"
-	"github.com/chestorix/monmetrics/internal/utils"
 	"net/http"
 	"time"
+
+	models "github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/utils"
 )
 
 type HTTPSender struct {

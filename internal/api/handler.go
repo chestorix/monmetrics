@@ -5,14 +5,15 @@ import (
 	"crypto/hmac"
 	"encoding/json"
 	"fmt"
-	"github.com/chestorix/monmetrics/internal/domain/interfaces"
-	"github.com/chestorix/monmetrics/internal/metrics"
-	"github.com/chestorix/monmetrics/internal/utils"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
+	models "github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/utils"
 )
 
 type MetricsHandler struct {

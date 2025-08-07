@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/sirupsen/logrus"
-	"net/http"
-	_ "net/http/pprof"
 )
 
 type Server struct {

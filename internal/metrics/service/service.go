@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
-	"github.com/chestorix/monmetrics/internal/metrics"
+	models "github.com/chestorix/monmetrics/internal/metrics"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 

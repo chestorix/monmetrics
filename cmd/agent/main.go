@@ -1,21 +1,22 @@
 package main
 
 import (
-	"github.com/caarlos0/env/v11"
-	"github.com/chestorix/monmetrics/internal/config"
-	"github.com/chestorix/monmetrics/internal/metrics"
-	"github.com/chestorix/monmetrics/internal/metrics/collector"
-	"github.com/chestorix/monmetrics/internal/metrics/sender"
-	"github.com/chestorix/monmetrics/internal/utils"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/caarlos0/env/v11"
+	"github.com/chestorix/monmetrics/internal/config"
+	models "github.com/chestorix/monmetrics/internal/metrics"
+	"github.com/chestorix/monmetrics/internal/metrics/collector"
+	"github.com/chestorix/monmetrics/internal/metrics/sender"
+	"github.com/chestorix/monmetrics/internal/utils"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/sirupsen/logrus"
 )
 
 type cfg struct {
