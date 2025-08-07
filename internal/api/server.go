@@ -6,6 +6,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	_ "net/http/pprof"
 )
 
 type Server struct {

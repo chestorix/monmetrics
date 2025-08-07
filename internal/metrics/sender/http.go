@@ -124,12 +124,17 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 
 	return utils.Retry(3, s.retryDelays, func() error {
+
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 
 		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		if err := enc.Encode(metrics); err != nil {
+			return err
+		}
 		gz := gzip.NewWriter(&buf)
 		if _, err := gz.Write(jsonData); err != nil {
 			return utils.ErrMaxRetriesExceeded

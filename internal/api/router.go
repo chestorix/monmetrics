@@ -5,6 +5,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sirupsen/logrus"
+	"net/http"
+	"net/http/pprof"
 )
 
 type Router struct {
@@ -28,9 +30,19 @@ func NewRouter(logger *logrus.Logger) *Router {
 }
 
 func (r *Router) SetupRoutes(metricsHandler *MetricsHandler) {
-
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", metricsHandler.GetAllMetricsHandler)
+
+		r.Handle("/debug/pprof/*", http.HandlerFunc(pprof.Index))
+		r.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		r.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		r.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		r.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+		r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		r.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+		r.Handle("/debug/pprof/block", pprof.Handler("block"))
+		r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 
 		r.Route("/update", func(r chi.Router) {
 			r.Post("/", metricsHandler.UpdateJSONHandler)
@@ -47,6 +59,5 @@ func (r *Router) SetupRoutes(metricsHandler *MetricsHandler) {
 		r.Route("/updates", func(r chi.Router) {
 			r.Post("/", metricsHandler.UpdatesHandler)
 		})
-
 	})
 }

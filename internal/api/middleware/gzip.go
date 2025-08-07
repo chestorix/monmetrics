@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"compress/flate"
 	"compress/gzip"
 	"io"
 	"net/http"
@@ -8,9 +9,16 @@ import (
 	"sync"
 )
 
-var gzPool = sync.Pool{
+/*var gzPool = sync.Pool{
 	New: func() interface{} {
 		return gzip.NewWriter(io.Discard)
+	},
+}*/
+
+var flateWriterPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := flate.NewWriter(nil, flate.BestSpeed) // Быстрая компрессия
+		return w
 	},
 }
 
@@ -35,8 +43,8 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Создаём gzip.Writer
-		gz := gzPool.Get().(*gzip.Writer)
-		defer gzPool.Put(gz)
+		gz := flateWriterPool.Get().(*flate.Writer)
+		defer flateWriterPool.Put(gz)
 		gz.Reset(w)
 		defer gz.Close()
 

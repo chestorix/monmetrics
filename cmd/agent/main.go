@@ -11,6 +11,8 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/sirupsen/logrus"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -175,6 +177,12 @@ func main() {
 		ReportInterval: time.Duration(reportInterval) * time.Second,
 		Key:            key,
 	}
-
+	go func() {
+		log.Println("Starting pprof server on :8081")
+		if err := http.ListenAndServe(":8081", nil); err != nil {
+			logrus.WithError(err).Error("pprof server failed")
+		}
+	}()
 	startAgent(agentCfg, rateLimit)
+
 }
