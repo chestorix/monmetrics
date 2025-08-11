@@ -16,6 +16,7 @@ import (
 	"github.com/chestorix/monmetrics/internal/utils"
 )
 
+// MetricsHandler обрабатывает HTTP-запросы для операций с метриками.
 type MetricsHandler struct {
 	service interfaces.Service
 	dbDNS   string
@@ -25,6 +26,7 @@ type jsonError struct {
 	Error string `json:"error"`
 }
 
+// NewMetricsHandler создает новый экземпляр MetricsHandler.
 func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
 	return &MetricsHandler{service: service,
 		dbDNS: dbDNS,
@@ -45,6 +47,9 @@ func (h *MetricsHandler) checkHash(r *http.Request, data []byte) (bool, string) 
 	return hmac.Equal([]byte(expectedHash), []byte(receivedHash)), expectedHash
 }
 
+// UpdateHandler POST запрос на обновление метрики через URL.
+// Path format: /update/<metricType>/<metricName>/<metricValue>
+// Поддерживаемые типы: gauge, counter
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -95,6 +100,9 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetValuesHandler GET запрос на получение значений метрик.
+// Path format: /value/<metricType>/<metricName>
+// Поддерживаемые типы: gauge, counter
 func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -145,6 +153,7 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetAllMetricsHandler Get запрос на получение всех метрик в формате HTML.
 func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -165,6 +174,8 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
 	w.Write([]byte(html))
 }
 
+// UpdateJSONHandler POST запрос для обновления метрик в формате JSON.
+// JSON format: {"id": "metricName", "type": "gauge|counter", "value|delta": number}
 func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -223,6 +234,9 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 }
+
+// ValueJSONHandler POST запрос на получение значений метрик в формате JSON.
+// JSON format: {"id": "metricName", "type": "gauge|counter"}
 func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -258,6 +272,8 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// PingHandler GET запрос для проверки соединения с Базой данных.
+// 200 при коннекте, 500 в других случаях.
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -273,6 +289,9 @@ func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+// UpdatesHandler POST  запрос обновления пачки метрик за одну транзакцию в формате JSON.
+// JSON format: [{"id": "metric1", "type": "gauge", "value": 1.23}, ...]
 func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
