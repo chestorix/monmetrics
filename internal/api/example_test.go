@@ -165,8 +165,13 @@ func ExampleMetricsHandler_UpdateHandler() {
 	ts := httptest.NewServer(http.HandlerFunc(handler.UpdateHandler))
 	defer ts.Close()
 
-	res, _ := http.Post(ts.URL+"/update/gauge/test_metric/123.45", "text/plain", nil)
+	res, err := http.Post(ts.URL+"/update/gauge/test_metric/123.45", "text/plain", nil)
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
+
 	fmt.Println(res.Status)
 	// Output: 200 OK
 }
@@ -179,11 +184,19 @@ func ExampleMetricsHandler_GetValuesHandler() {
 	ts := httptest.NewServer(http.HandlerFunc(handler.GetValuesHandler))
 	defer ts.Close()
 
-	res, _ := http.Get(ts.URL + "/value/gauge/test_metric")
+	res, err := http.Get(ts.URL + "/value/gauge/test_metric")
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	var body bytes.Buffer
-	body.ReadFrom(res.Body)
+	if _, err := body.ReadFrom(res.Body); err != nil {
+		fmt.Printf("Error reading response: %v\n", err)
+		return
+	}
+
 	fmt.Println(body.String())
 	// Output: 123.45
 }
@@ -197,7 +210,11 @@ func ExampleMetricsHandler_GetAllMetricsHandler() {
 	ts := httptest.NewServer(http.HandlerFunc(handler.GetAllMetricsHandler))
 	defer ts.Close()
 
-	res, _ := http.Get(ts.URL)
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	fmt.Println(res.Status)
@@ -214,12 +231,20 @@ func ExampleMetricsHandler_UpdateJSONHandler() {
 		Value: func() *float64 { v := 123.45; return &v }(),
 	}
 
-	jsonData, _ := json.Marshal(metric)
+	jsonData, err := json.Marshal(metric)
+	if err != nil {
+		fmt.Printf("Error marshaling metric: %v\n", err)
+		return
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.UpdateJSONHandler))
 	defer ts.Close()
 
-	res, _ := http.Post(ts.URL+"/update/", "application/json", bytes.NewBuffer(jsonData))
+	res, err := http.Post(ts.URL+"/update/", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	fmt.Println(res.Status)
@@ -236,12 +261,20 @@ func ExampleMetricsHandler_ValueJSONHandler() {
 		MType: models.Gauge,
 	}
 
-	jsonData, _ := json.Marshal(metric)
+	jsonData, err := json.Marshal(metric)
+	if err != nil {
+		fmt.Printf("Error marshaling metric: %v\n", err)
+		return
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.ValueJSONHandler))
 	defer ts.Close()
 
-	res, _ := http.Post(ts.URL+"/value/", "application/json", bytes.NewBuffer(jsonData))
+	res, err := http.Post(ts.URL+"/value/", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	fmt.Println(res.Status)
@@ -250,12 +283,17 @@ func ExampleMetricsHandler_ValueJSONHandler() {
 
 func ExampleMetricsHandler_PingHandler() {
 	mock := newMockService()
+	mock.dbError = fmt.Errorf("DB connection error")
 	handler := api.NewMetricsHandler(mock, "test_dsn", "")
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.PingHandler))
 	defer ts.Close()
 
-	res, _ := http.Get(ts.URL)
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	fmt.Println(res.Status)
@@ -279,12 +317,20 @@ func ExampleMetricsHandler_UpdatesHandler() {
 		},
 	}
 
-	jsonData, _ := json.Marshal(metrics)
+	jsonData, err := json.Marshal(metrics)
+	if err != nil {
+		fmt.Printf("Error marshaling metrics: %v\n", err)
+		return
+	}
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.UpdatesHandler))
 	defer ts.Close()
 
-	res, _ := http.Post(ts.URL+"/updates/", "application/json", bytes.NewBuffer(jsonData))
+	res, err := http.Post(ts.URL+"/updates/", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return
+	}
 	defer res.Body.Close()
 
 	fmt.Println(res.Status)
