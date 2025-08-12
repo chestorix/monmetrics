@@ -9,12 +9,6 @@ import (
 	"sync"
 )
 
-/*var gzPool = sync.Pool{
-	New: func() interface{} {
-		return gzip.NewWriter(io.Discard)
-	},
-}*/
-
 var flateWriterPool = sync.Pool{
 	New: func() interface{} {
 		w, _ := flate.NewWriter(nil, flate.BestSpeed) // Быстрая компрессия

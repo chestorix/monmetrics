@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/chestorix/monmetrics/internal/domain/interfaces"
+	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"log"
 	"os"
 	"os/signal"
@@ -12,14 +14,10 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
-	"github.com/chestorix/monmetrics/internal/domain/interfaces"
-	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"github.com/chestorix/monmetrics/internal/metrics/service"
-	"github.com/chestorix/monmetrics/internal/utils"
 	"github.com/sirupsen/logrus"
 )
 
-// test commit
 type cfg struct {
 	Address         string `env:"ADDRESS"`
 	StoreInterval   int    `env:"STORE_INTERVAL"`
@@ -29,15 +27,21 @@ type cfg struct {
 	SecretKey       string `env:"KEY"`
 }
 
-func main() {
+var logger *logrus.Logger
+
+func setupLogger() *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetLevel(logrus.InfoLevel)
+	return logger
+}
+func loadConfig() config.ServerConfig {
 	var conf cfg
 	if err := env.Parse(&conf); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
 	parseFlags()
+
 	key := conf.SecretKey
 	if conf.SecretKey == "" {
 		key = flagKey
@@ -69,7 +73,6 @@ func main() {
 		dbDSN = flagConnDB
 
 	}
-	var storage interfaces.Repository
 
 	cfg := config.ServerConfig{
 		Address:         serverAddress,
@@ -79,36 +82,20 @@ func main() {
 		DatabaseDSN:     dbDSN,
 		Key:             key,
 	}
-	logger.Println(cfg)
-	if dbDSN != "" {
-		retryDelays := []time.Duration{time.Second, 3 * time.Second, 5 * time.Second}
-		pgStorage, err := repository.NewPostgresStorage(dbDSN)
-		err = utils.Retry(3, retryDelays, func() error {
+	return cfg
+}
 
-			if err != nil {
-				return err
-			}
-
-			storage = pgStorage
-
-			return nil
-		})
-		if err != nil {
-			logger.Fatalf("Failed to initialize PostgreSQL storage after retries: %v", err)
-		}
-
-		logger.Info("Using PostgreSQL storage")
-		defer pgStorage.Close()
-	} else if cfg.FileStoragePath != "" {
-		storage = repository.NewMemStorage(cfg.FileStoragePath)
-		logger.Info("Using file storage")
-	} else {
-		storage = repository.NewMemStorage("")
-		logger.Info("Using in-memory storage")
+func main() {
+	logger = setupLogger()
+	cfg := loadConfig()
+	var err error
+	storage, err := repository.NewInitStorage().CreateStorage(cfg.DatabaseDSN, cfg.FileStoragePath)
+	if err != nil {
+		logger.Fatalf("Failed to create storage: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if cfg.Restore && cfg.FileStoragePath != "" && dbDSN == "" {
+	if cfg.Restore && cfg.FileStoragePath != "" && cfg.DatabaseDSN == "" {
 		if err := storage.Load(ctx); err != nil {
 			logger.WithError(err).Error("Failed to load metrics from file")
 		}
@@ -116,10 +103,18 @@ func main() {
 
 	metricService := service.NewService(storage)
 	server := api.NewServer(&cfg, metricService, logger)
+	setupBackgroundSaver(context.Background(), storage, cfg.StoreInterval)
+	setupGracefulShutdown(context.Background(), cancel, storage, server)
 
-	if cfg.StoreInterval > 0 {
+	if err := server.Start(); err != nil {
+		logger.WithError(err).Fatal("Server failed")
+	}
+
+}
+func setupBackgroundSaver(ctx context.Context, storage interfaces.Repository, interval time.Duration) {
+	if interval > 0 {
 		go func() {
-			ticker := time.NewTicker(cfg.StoreInterval)
+			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
 
 			for {
@@ -134,7 +129,9 @@ func main() {
 			}
 		}()
 	}
+}
 
+func setupGracefulShutdown(ctx context.Context, cancel context.CancelFunc, storage interfaces.Repository, server *api.Server) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
@@ -149,9 +146,4 @@ func main() {
 		cancel()
 		os.Exit(0)
 	}()
-
-	if err := server.Start(); err != nil {
-		logger.WithError(err).Fatal("Server failed")
-	}
-
 }

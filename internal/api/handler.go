@@ -17,6 +17,7 @@ import (
 )
 
 // MetricsHandler обрабатывает HTTP-запросы для операций с метриками.
+// Содержит методы для обновления, получения и проверки метрик.
 type MetricsHandler struct {
 	service interfaces.Service
 	dbDNS   string
@@ -27,6 +28,11 @@ type jsonError struct {
 }
 
 // NewMetricsHandler создает новый экземпляр MetricsHandler.
+// Принимает:
+// - service: сервис для работы с метриками
+// - dbDNS: строка подключения к БД (может быть пустой)
+// - key: ключ для подписи данных (может быть пустым)
+// Возвращает указатель на новый MetricsHandler.
 func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
 	return &MetricsHandler{service: service,
 		dbDNS: dbDNS,
@@ -34,22 +40,29 @@ func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *Me
 	}
 }
 
+// checkHash проверяет хеш переданных данных.
+// Возвращает:
+// - bool: совпадает ли хеш
+// - string: вычисленный хеш
 func (h *MetricsHandler) checkHash(r *http.Request, data []byte) (bool, string) {
 
 	receivedHash := r.Header.Get("HashSHA256")
-	fmt.Println("HASH", receivedHash)
 	if receivedHash == "" {
 		return false, ""
 	}
 
 	expectedHash := utils.CalculateHash(data, h.key)
-	fmt.Println("HASH CHECK", expectedHash, hmac.Equal([]byte(expectedHash), []byte(receivedHash)))
 	return hmac.Equal([]byte(expectedHash), []byte(receivedHash)), expectedHash
 }
 
-// UpdateHandler POST запрос на обновление метрики через URL.
-// Path format: /update/<metricType>/<metricName>/<metricValue>
+// UpdateHandler обрабатывает POST запрос на обновление метрики через URL.
+// Формат пути: /update/<metricType>/<metricName>/<metricValue>
 // Поддерживаемые типы: gauge, counter
+// Возможные коды ответа:
+// - 200: успешное обновление
+// - 400: неверный запрос
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -100,9 +113,15 @@ func (h *MetricsHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetValuesHandler GET запрос на получение значений метрик.
-// Path format: /value/<metricType>/<metricName>
+// GetValuesHandler обрабатывает GET запрос на получение значений метрик.
+// Формат пути: /value/<metricType>/<metricName>
 // Поддерживаемые типы: gauge, counter
+// Возможные коды ответа:
+// - 200: успешное получение значения
+// - 400: неверный запрос
+// - 404: метрика не найдена
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -153,7 +172,11 @@ func (h *MetricsHandler) GetValuesHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// GetAllMetricsHandler Get запрос на получение всех метрик в формате HTML.
+// GetAllMetricsHandler обрабатывает GET запрос на получение всех метрик в формате HTML.
+// Возможные коды ответа:
+// - 200: успешное получение всех метрик
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -174,8 +197,14 @@ func (h *MetricsHandler) GetAllMetricsHandler(w http.ResponseWriter, r *http.Req
 	w.Write([]byte(html))
 }
 
-// UpdateJSONHandler POST запрос для обновления метрик в формате JSON.
-// JSON format: {"id": "metricName", "type": "gauge|counter", "value|delta": number}
+// UpdateJSONHandler обрабатывает POST запрос для обновления метрик в формате JSON.
+// Формат JSON: {"id": "metricName", "type": "gauge|counter", "value|delta": number}
+// Также проверяет хеш при наличии ключа.
+// Возможные коды ответа:
+// - 200: успешное обновление
+// - 400: неверный запрос или неверный хеш
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -235,8 +264,14 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 	w.Write(responseBody)
 }
 
-// ValueJSONHandler POST запрос на получение значений метрик в формате JSON.
-// JSON format: {"id": "metricName", "type": "gauge|counter"}
+// ValueJSONHandler обрабатывает POST запрос на получение значений метрик в формате JSON.
+// Формат JSON: {"id": "metricName", "type": "gauge|counter"}
+// Возможные коды ответа:
+// - 200: успешное получение значения
+// - 400: неверный запрос
+// - 404: метрика не найдена
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -272,8 +307,11 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// PingHandler GET запрос для проверки соединения с Базой данных.
-// 200 при коннекте, 500 в других случаях.
+// PingHandler обрабатывает GET запрос для проверки соединения с Базой данных.
+// Возвращает:
+// - 200: при успешном соединении
+// - 500: при ошибке соединения
+// Если dbDNS пустая, всегда возвращает 200.
 func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -290,8 +328,14 @@ func (h *MetricsHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// UpdatesHandler POST  запрос обновления пачки метрик за одну транзакцию в формате JSON.
-// JSON format: [{"id": "metric1", "type": "gauge", "value": 1.23}, ...]
+// UpdatesHandler обрабатывает POST запрос обновления пачки метрик за одну транзакцию в формате JSON.
+// Формат JSON: [{"id": "metric1", "type": "gauge", "value": 1.23}, ...]
+// Также проверяет хеш при наличии ключа.
+// Возможные коды ответа:
+// - 200: успешное обновление
+// - 400: неверный запрос или пустой пакет
+// - 405: метод не разрешен
+// - 500: внутренняя ошибка сервера
 func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
@@ -338,6 +382,10 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.WriteHeader(http.StatusOK)
 }
+
+// generateMetricsHTML генерирует HTML страницу со списком всех метрик.
+// Принимает slice метрик.
+// Возвращает сгенерированную HTML строку.
 func generateMetricsHTML(metrics []models.Metric) string {
 	var htmlBuilder strings.Builder
 
@@ -384,6 +432,11 @@ func generateMetricsHTML(metrics []models.Metric) string {
 	return htmlBuilder.String()
 }
 
+// renderError отправляет ошибку в формате JSON.
+// Принимает:
+// - w: ResponseWriter для записи ответа
+// - errorMsg: текст ошибки
+// - statusCode: HTTP статус код
 func renderError(w http.ResponseWriter, errorMsg string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
