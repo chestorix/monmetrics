@@ -1,3 +1,4 @@
+// Package agent - содержит логику инициализации агента сбора метрик.
 package agent
 
 import (

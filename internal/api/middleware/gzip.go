@@ -1,3 +1,4 @@
+// Package middleware - логика промежуточной обработки http запросов.
 package middleware
 
 import (

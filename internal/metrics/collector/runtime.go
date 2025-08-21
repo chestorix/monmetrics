@@ -1,3 +1,4 @@
+// Package collector - содержит логику сбора метрик.
 package collector
 
 import (

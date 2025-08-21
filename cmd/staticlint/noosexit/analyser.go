@@ -1,3 +1,4 @@
+// Package noosexit - анализатор os.Exit.
 package noosexit
 
 import (

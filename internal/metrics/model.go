@@ -1,3 +1,4 @@
+// Package models  содержит бизнес-сущности приложения.
 package models
 
 import "errors"

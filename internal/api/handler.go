@@ -1,3 +1,4 @@
+// Package api -  описание хендлеров и эндпоинтов.
 package api
 
 import (

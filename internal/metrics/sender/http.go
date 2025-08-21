@@ -1,3 +1,4 @@
+// Package sender содержит логику отправки метрик через http.
 package sender
 
 import (

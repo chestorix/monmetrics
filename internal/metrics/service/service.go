@@ -1,3 +1,4 @@
+// Package service - реализация бизнес-логики.
 package service
 
 import (

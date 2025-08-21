@@ -1,3 +1,4 @@
+// Package interfaces -  определение интерфейсов приложения.
 package interfaces
 
 import (

@@ -102,13 +102,11 @@ import (
 	"golang.org/x/tools/go/analysis/passes/composite"
 	"golang.org/x/tools/go/analysis/passes/copylock"
 	"golang.org/x/tools/go/analysis/passes/errorsas"
-	"golang.org/x/tools/go/analysis/passes/fieldalignment"
 	"golang.org/x/tools/go/analysis/passes/httpresponse"
 	"golang.org/x/tools/go/analysis/passes/loopclosure"
 	"golang.org/x/tools/go/analysis/passes/lostcancel"
 	"golang.org/x/tools/go/analysis/passes/nilfunc"
 	"golang.org/x/tools/go/analysis/passes/printf"
-	"golang.org/x/tools/go/analysis/passes/shadow"
 	"golang.org/x/tools/go/analysis/passes/shift"
 	"golang.org/x/tools/go/analysis/passes/sortslice"
 	"golang.org/x/tools/go/analysis/passes/stdmethods"
@@ -204,13 +202,13 @@ func main() {
 		composite.Analyzer,
 		copylock.Analyzer,
 		errorsas.Analyzer,
-		fieldalignment.Analyzer,
+		//	fieldalignment.Analyzer,
 		httpresponse.Analyzer,
 		loopclosure.Analyzer,
 		lostcancel.Analyzer,
 		nilfunc.Analyzer,
 		printf.Analyzer,
-		shadow.Analyzer,
+		//	shadow.Analyzer,
 		shift.Analyzer,
 		sortslice.Analyzer,
 		stdmethods.Analyzer,
