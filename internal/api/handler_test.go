@@ -18,9 +18,9 @@ import (
 type MockMetricsService struct {
 	gaugeValues   map[string]float64
 	counterValues map[string]int64
+	ctx           context.Context
 	getAllError   bool
 	checkDBError  bool
-	ctx           context.Context
 }
 
 func NewMockMetricsService() *MockMetricsService {
@@ -197,8 +197,8 @@ func (m *MockMetricsService) UpdateMetricsBatch(ctx context.Context, metrics []m
 func TestMetricsHandler_UpdateHandler(t *testing.T) {
 	type want struct {
 		code        int
-		response    string
 		contentType string
+		response    string
 	}
 	tests := []struct {
 		name string
@@ -272,8 +272,8 @@ func TestMetricsHandler_GetValuesHandler(t *testing.T) {
 	defer cancel()
 	type want struct {
 		code        int
-		response    string
 		contentType string
+		response    string
 	}
 	tests := []struct {
 		name    string

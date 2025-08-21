@@ -14,9 +14,9 @@ import (
 )
 
 type Agent struct {
-	cfg       config.AgentConfig
-	sender    *sender.HTTPSender
 	collector *collector.RuntimeCollector
+	sender    *sender.HTTPSender
+	cfg       config.AgentConfig
 }
 
 func NewAgent(cfg config.AgentConfig) *Agent {

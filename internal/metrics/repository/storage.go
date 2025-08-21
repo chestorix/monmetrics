@@ -14,8 +14,8 @@ import (
 type MemStorage struct {
 	Gauges   map[string]float64
 	Counters map[string]int64
-	mu       sync.RWMutex
 	filePath string
+	mu       sync.RWMutex
 }
 
 func NewMemStorage(filePath string) interfaces.Repository {

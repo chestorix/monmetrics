@@ -16,9 +16,9 @@ import (
 
 type cfg struct {
 	Address        string `env:"ADDRESS"`
+	SecretKey      string `env:"KEY"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
-	SecretKey      string `env:"KEY"`
 	RateLimit      int    `env:"RATE_LIMIT"`
 }
 

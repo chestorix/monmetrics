@@ -13,10 +13,10 @@ import (
 )
 
 type HTTPSender struct {
-	baseURL     string
-	client      *http.Client
 	retryDelays []time.Duration
+	baseURL     string
 	key         string
+	client      *http.Client
 }
 
 func NewHTTPSender(baseURL string, key string) *HTTPSender {
@@ -27,15 +27,6 @@ func NewHTTPSender(baseURL string, key string) *HTTPSender {
 		key:         key,
 	}
 }
-
-/*func (s *HTTPSender) calculateHash(data []byte) string {
-	if s.key == "" {
-		return ""
-	}
-	h := hmac.New(sha256.New, []byte(s.key))
-	h.Write(data)
-	return hex.EncodeToString(h.Sum(nil))
-}*/
 
 func (s *HTTPSender) Send(metric models.Metric) error {
 
@@ -137,10 +128,10 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			return err
 		}
 		gz := gzip.NewWriter(&buf)
-		if _, err := gz.Write(jsonData); err != nil {
+		if _, errWrite := gz.Write(jsonData); errWrite != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
-		if err := gz.Close(); err != nil {
+		if errClose := gz.Close(); errClose != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 
