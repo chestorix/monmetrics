@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/chestorix/monmetrics/internal/agent"
 	"log"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	buildVersion string = "N/A"
+	buildDate    string = "N/A"
+	buildCommit  string = "N/A"
 )
 
 type cfg struct {
@@ -68,7 +75,14 @@ func applyFlags(cfg cfg) config.AgentConfig {
 	return agentCfg
 }
 
+func printBuildInfo() {
+	fmt.Printf("Build version: %s\n", buildVersion)
+	fmt.Printf("Build date: %s\n", buildDate)
+	fmt.Printf("Build commit: %s\n", buildCommit)
+}
+
 func main() {
+	printBuildInfo()
 	parseFlags()
 	var cfg cfg
 	if err := env.Parse(&cfg); err != nil {
