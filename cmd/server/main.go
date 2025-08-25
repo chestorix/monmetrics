@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics/repository"
+	"github.com/chestorix/monmetrics/internal/utils"
 	"log"
 	"os"
 	"os/signal"
@@ -92,14 +92,8 @@ func loadConfig() config.ServerConfig {
 	return cfg
 }
 
-func printBuildInfo() {
-	fmt.Printf("Build version: %s\n", buildVersion)
-	fmt.Printf("Build date: %s\n", buildDate)
-	fmt.Printf("Build commit: %s\n", buildCommit)
-}
-
 func main() {
-	printBuildInfo()
+	utils.PrintBuildInfo(buildVersion, buildDate, buildCommit)
 	logger = setupLogger()
 	cfg := loadConfig()
 	var err error

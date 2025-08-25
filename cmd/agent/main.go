@@ -2,17 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/agent"
+	"github.com/chestorix/monmetrics/internal/config"
+	"github.com/chestorix/monmetrics/internal/utils"
+	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
-	"strings"
-	"time"
-
-	"github.com/caarlos0/env/v11"
-	"github.com/chestorix/monmetrics/internal/config"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -21,74 +18,22 @@ var (
 	buildCommit  string = "N/A"
 )
 
-type cfg struct {
-	Address        string `env:"ADDRESS"`
-	SecretKey      string `env:"KEY"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	RateLimit      int    `env:"RATE_LIMIT"`
-}
-
-func ensureHTTP(address string) string {
-	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
-		return "http://" + address
-	}
-	return address
-}
-
-func applyFlags(cfg cfg) config.AgentConfig {
-	key := cfg.SecretKey
-	if cfg.SecretKey == "" {
-		key = flagKey
-	}
-
-	address := cfg.Address
-	if address == "" {
-		address = flagRunAddr
-	}
-	address = ensureHTTP(address)
-
-	reportInterval := cfg.ReportInterval
-	if reportInterval == 0 {
-		reportInterval = flagReportInterval
-	}
-
-	pollInterval := cfg.PollInterval
-	if pollInterval == 0 {
-		pollInterval = flagPollInterval
-	}
-
-	rateLimit := cfg.RateLimit
-	if rateLimit == 0 {
-		rateLimit = flagRateLimit
-	}
-	if rateLimit <= 0 {
-		rateLimit = 1
-	}
-
-	agentCfg := config.AgentConfig{
-		Address:        address,
-		PollInterval:   time.Duration(pollInterval) * time.Second,
-		ReportInterval: time.Duration(reportInterval) * time.Second,
-		Key:            key,
-	}
-	return agentCfg
-}
-
-func printBuildInfo() {
-	fmt.Printf("Build version: %s\n", buildVersion)
-	fmt.Printf("Build date: %s\n", buildDate)
-	fmt.Printf("Build commit: %s\n", buildCommit)
-}
-
 func main() {
-	printBuildInfo()
+	utils.PrintBuildInfo(buildVersion, buildDate, buildCommit)
 	parseFlags()
-	var cfg cfg
+	flags := map[string]any{
+		"flagKey":            flagKey,
+		"flagRunAddr":        flagRunAddr,
+		"flagReportInterval": flagReportInterval,
+		"flagPollInterval":   flagPollInterval,
+		"flagRateLimit":      flagRateLimit,
+	}
+
+	var cfg config.CfgAgentENV
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
-	agentCfg := applyFlags(cfg)
+	agentCfg := cfg.ApplyFlags(flags)
 
 	go func() {
 		log.Println("Starting pprof server on :8081")
