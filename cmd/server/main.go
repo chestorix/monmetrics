@@ -5,14 +5,11 @@ import (
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"github.com/chestorix/monmetrics/internal/utils"
-	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/api"
 	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/metrics/service"
@@ -25,15 +22,6 @@ var (
 	buildCommit  string = "N/A"
 )
 
-type cfg struct {
-	Address         string `env:"ADDRESS"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	DatabaseDSN     string `env:"DATABASE_DSN"`
-	SecretKey       string `env:"KEY"`
-	StoreInterval   int    `env:"STORE_INTERVAL"`
-	Restore         bool   `env:"RESTORE"`
-}
-
 var logger *logrus.Logger
 
 func setupLogger() *logrus.Logger {
@@ -42,60 +30,20 @@ func setupLogger() *logrus.Logger {
 	logger.SetLevel(logrus.InfoLevel)
 	return logger
 }
-func loadConfig() config.ServerConfig {
-	var conf cfg
-	if err := env.Parse(&conf); err != nil {
-		log.Fatal("Failed to parse env vars:", err)
-	}
-	parseFlags()
-
-	key := conf.SecretKey
-	if conf.SecretKey == "" {
-		key = flagKey
-	}
-	serverAddress := conf.Address
-	if serverAddress == "" {
-		serverAddress = flagRunAddr
-	}
-	if !strings.Contains(serverAddress, ":") {
-		serverAddress = ":" + serverAddress
-	}
-
-	storeInterval := conf.StoreInterval
-	if storeInterval == 0 {
-		storeInterval = flagStoreInterval
-	}
-
-	fileStoragePath := conf.FileStoragePath
-	if fileStoragePath == "" {
-		fileStoragePath = flagFileStoragePath
-	}
-
-	restore := conf.Restore
-	if !restore {
-		restore = flagRestore
-	}
-	dbDSN := conf.DatabaseDSN
-	if dbDSN == "" {
-		dbDSN = flagConnDB
-
-	}
-
-	cfg := config.ServerConfig{
-		Address:         serverAddress,
-		StoreInterval:   time.Duration(storeInterval) * time.Second,
-		FileStoragePath: fileStoragePath,
-		Restore:         restore,
-		DatabaseDSN:     dbDSN,
-		Key:             key,
-	}
-	return cfg
-}
 
 func main() {
 	utils.PrintBuildInfo(buildVersion, buildDate, buildCommit)
+	parseFlags()
+	flags := map[string]any{
+		"flagRunAddr":         flagRunAddr,
+		"flagStoreInterval":   flagStoreInterval,
+		"flagFileStoragePath": flagFileStoragePath,
+		"flagConnDB":          flagConnDB,
+		"flagKey":             flagKey,
+	}
 	logger = setupLogger()
-	cfg := loadConfig()
+	cfg := &config.CfgServerENV{}
+	serverCfg := cfg.ApplyFlags(flags)
 	var err error
 	storage, err := repository.NewInitStorage().CreateStorage(cfg.DatabaseDSN, cfg.FileStoragePath)
 	if err != nil {
@@ -110,8 +58,8 @@ func main() {
 	}
 
 	metricService := service.NewService(storage)
-	server := api.NewServer(&cfg, metricService, logger)
-	setupBackgroundSaver(context.Background(), storage, cfg.StoreInterval)
+	server := api.NewServer(&serverCfg, metricService, logger)
+	setupBackgroundSaver(context.Background(), storage, serverCfg.StoreInterval)
 	setupGracefulShutdown(context.Background(), cancel, storage, server)
 
 	if err := server.Start(); err != nil {

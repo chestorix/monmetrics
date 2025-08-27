@@ -2,6 +2,8 @@
 package config
 
 import (
+	"github.com/caarlos0/env/v11"
+	"log"
 	"strings"
 	"time"
 )
@@ -30,6 +32,15 @@ type CfgAgentENV struct {
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
 	RateLimit      int    `env:"RATE_LIMIT"`
+}
+
+type CfgServerENV struct {
+	Address         string `env:"ADDRESS"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
+	SecretKey       string `env:"KEY"`
+	StoreInterval   int    `env:"STORE_INTERVAL"`
+	Restore         bool   `env:"RESTORE"`
 }
 
 func ensureHTTP(address string) string {
@@ -84,4 +95,64 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 		Key:            key,
 	}
 	return agentCfg
+}
+
+func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
+	if err := env.Parse(&conf); err != nil {
+		log.Fatal("Failed to parse env vars:", err)
+	}
+
+	key := conf.SecretKey
+	if conf.SecretKey == "" {
+		if value, ok := mapFlags["flagKey"].(string); ok {
+			key = value
+		}
+	}
+	serverAddress := conf.Address
+	if serverAddress == "" {
+		if value, ok := mapFlags["flagRunAddr"].(string); ok {
+			serverAddress = value
+		}
+	}
+	if !strings.Contains(serverAddress, ":") {
+		serverAddress = ":" + serverAddress
+	}
+
+	storeInterval := conf.StoreInterval
+	if storeInterval == 0 {
+		if value, ok := mapFlags["flagStoreInterval"].(int); ok {
+			storeInterval = value
+		}
+	}
+
+	fileStoragePath := conf.FileStoragePath
+	if fileStoragePath == "" {
+		if value, ok := mapFlags["flagFileStoragePath"].(string); ok {
+			fileStoragePath = value
+		}
+	}
+
+	restore := conf.Restore
+	if !restore {
+		if value, ok := mapFlags["flagRestoreInterval"].(bool); ok {
+			restore = value
+		}
+	}
+	dbDSN := conf.DatabaseDSN
+	if dbDSN == "" {
+		if value, ok := mapFlags["flagDatabaseDSN"].(string); ok {
+			dbDSN = value
+		}
+
+	}
+
+	cfg := ServerConfig{
+		Address:         serverAddress,
+		StoreInterval:   time.Duration(storeInterval) * time.Second,
+		FileStoragePath: fileStoragePath,
+		Restore:         restore,
+		DatabaseDSN:     dbDSN,
+		Key:             key,
+	}
+	return cfg
 }
