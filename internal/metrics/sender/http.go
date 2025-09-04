@@ -68,6 +68,7 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
+	log.Printf("Sending JSON of %d metrics to %s", metric, s.baseURL)
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name
@@ -147,6 +148,7 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
+	log.Printf("Sending batch of %d metrics to %s", len(metrics), s.baseURL)
 	return utils.Retry(3, s.retryDelays, func() error {
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {

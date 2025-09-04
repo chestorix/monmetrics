@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/caarlos0/env/v11"
 	"github.com/chestorix/monmetrics/internal/agent"
 	"github.com/chestorix/monmetrics/internal/config"
@@ -43,5 +44,6 @@ func main() {
 		}
 	}()
 	agent := agent.NewAgent(agentCfg)
+	fmt.Println(agentCfg)
 	agent.Run(context.Background(), cfg.RateLimit)
 }

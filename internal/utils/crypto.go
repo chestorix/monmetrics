@@ -53,12 +53,12 @@ func LoadPrivateKey(filename string) (*rsa.PrivateKey, error) {
 		return nil, ErrInvalidKey
 	}
 
-	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
 
-	return priv, nil
+	return priv.(*rsa.PrivateKey), nil
 }
 
 // EncryptData шифрует данные публичным ключом
