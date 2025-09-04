@@ -40,6 +40,7 @@ func main() {
 		"flagFileStoragePath": flagFileStoragePath,
 		"flagConnDB":          flagConnDB,
 		"flagKey":             flagKey,
+		"flagCryptoKey":       flagCryptoKey,
 	}
 	logger = setupLogger()
 	cfg := &config.CfgServerENV{}

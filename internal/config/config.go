@@ -109,7 +109,7 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 }
 
 func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
-	if err := env.Parse(&conf); err != nil {
+	if err := env.Parse(conf); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
 

@@ -27,6 +27,7 @@ func main() {
 		"flagReportInterval": flagReportInterval,
 		"flagPollInterval":   flagPollInterval,
 		"flagRateLimit":      flagRateLimit,
+		"flagCryptoKey":      flagCryptoKey,
 	}
 
 	var cfg config.CfgAgentENV
