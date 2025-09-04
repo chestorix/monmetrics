@@ -4,8 +4,10 @@ package sender
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -17,10 +19,20 @@ type HTTPSender struct {
 	retryDelays []time.Duration
 	baseURL     string
 	key         string
+	publicKey   *rsa.PublicKey
 	client      *http.Client
 }
 
-func NewHTTPSender(baseURL string, key string) *HTTPSender {
+func NewHTTPSender(baseURL string, key string, cryptoKey string) *HTTPSender {
+
+	var err error
+	var publicKey *rsa.PublicKey
+	if cryptoKey != "" {
+		publicKey, err = utils.LoadPublicKey(cryptoKey)
+		if err != nil {
+			log.Printf("Failed to load public key: %v", err)
+		}
+	}
 	return &HTTPSender{
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 5 * time.Second},
@@ -82,12 +94,33 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		req, err := http.NewRequest("POST", s.baseURL+"/update/", bytes.NewBuffer(jsonData))
+		// Шифруем данные только если публичный ключ доступен
+		var requestBody []byte
+		var contentType string
+
+		if s.publicKey != nil {
+			encryptedData, err := utils.EncryptData(jsonData, s.publicKey)
+			if err != nil {
+				return fmt.Errorf("encryption failed: %w", err)
+			}
+			requestBody = encryptedData
+			contentType = "application/octet-stream"
+		} else {
+			requestBody = jsonData
+			contentType = "application/json"
+		}
+
+		req, err := http.NewRequest("POST", s.baseURL+"/update/", bytes.NewBuffer(requestBody))
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
+
+		// Устанавливаем флаг шифрования только если используется шифрование
+		if s.publicKey != nil {
+			req.Header.Set("X-Encrypted", "true")
+		}
 
 		if s.key != "" {
 			hash := utils.CalculateHash(jsonData, s.key)
@@ -115,21 +148,31 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
-
 	return utils.Retry(3, s.retryDelays, func() error {
-
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		var buf bytes.Buffer
-		enc := json.NewEncoder(&buf)
-		if err := enc.Encode(metrics); err != nil {
-			return err
+		// Шифруем данные только если публичный ключ доступен
+		var dataToCompress []byte
+		var contentType string
+
+		if s.publicKey != nil {
+			encryptedData, err := utils.EncryptData(jsonData, s.publicKey)
+			if err != nil {
+				return fmt.Errorf("encryption failed: %w", err)
+			}
+			dataToCompress = encryptedData
+			contentType = "application/octet-stream"
+		} else {
+			dataToCompress = jsonData
+			contentType = "application/json"
 		}
+
+		var buf bytes.Buffer
 		gz := gzip.NewWriter(&buf)
-		if _, errWrite := gz.Write(jsonData); errWrite != nil {
+		if _, errWrite := gz.Write(dataToCompress); errWrite != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
 		if errClose := gz.Close(); errClose != nil {
@@ -140,11 +183,19 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
-		req.Header.Set("Content-Type", "application/json")
+
+		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("Content-Encoding", "gzip")
+
+		// Устанавливаем флаг шифрования только если используется шифрование
+		if s.publicKey != nil {
+			req.Header.Set("X-Encrypted", "true")
+		}
+
 		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
 			req.Header.Set("HashSHA256", hash)
 		}
+
 		resp, err := s.client.Do(req)
 		if err != nil {
 			if utils.IsNetworkError(err) {

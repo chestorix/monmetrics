@@ -14,6 +14,7 @@ type ServerConfig struct {
 	DatabaseDSN     string        // строка подключения к БД (если используется)
 	Address         string        // адрес и порт сервера (например: ":8080")
 	Key             string        // секретный ключ для проверки хешей
+	CryptoKey       string        // Путь к файлу с приватным ключом
 	StoreInterval   time.Duration // интервал сохранения метрик на диск (0 - синхронная запись)
 	Restore         bool          // восстанавливать метрики из файла при старте
 }
@@ -22,6 +23,7 @@ type ServerConfig struct {
 type AgentConfig struct {
 	Address        string        // Адрес сервера для подключения
 	Key            string        // Ключ для генерации ХЕШ
+	CryptoKey      string        //Путь к фалу с публичным ключом
 	PollInterval   time.Duration // Интервал опроса метрик
 	ReportInterval time.Duration // Интервал отправки метрик
 }
@@ -29,6 +31,7 @@ type AgentConfig struct {
 type CfgAgentENV struct {
 	Address        string `env:"ADDRESS"`
 	SecretKey      string `env:"KEY"`
+	CryptoKey      string `env:"CRYPTO_KEY"`
 	ReportInterval int    `env:"REPORT_INTERVAL"`
 	PollInterval   int    `env:"POLL_INTERVAL"`
 	RateLimit      int    `env:"RATE_LIMIT"`
@@ -39,6 +42,7 @@ type CfgServerENV struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	SecretKey       string `env:"KEY"`
+	CryptoKey       string `env:"CRYPTO_KEY"`
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	Restore         bool   `env:"RESTORE"`
 }
@@ -87,12 +91,19 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 	if rateLimit <= 0 {
 		rateLimit = 1
 	}
+	cryptoKey := cfg.CryptoKey
+	if cryptoKey == "" {
+		if value, ok := mapFlags["flagCryptoKey"].(string); ok {
+			cryptoKey = value
+		}
+	}
 
 	agentCfg := AgentConfig{
 		Address:        address,
 		PollInterval:   time.Duration(pollInterval) * time.Second,
 		ReportInterval: time.Duration(reportInterval) * time.Second,
 		Key:            key,
+		CryptoKey:      cryptoKey,
 	}
 	return agentCfg
 }
@@ -145,6 +156,12 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		}
 
 	}
+	cryptoKey := conf.CryptoKey
+	if cryptoKey == "" {
+		if value, ok := mapFlags["flagCryptoKey"].(string); ok {
+			cryptoKey = value
+		}
+	}
 
 	cfg := ServerConfig{
 		Address:         serverAddress,
@@ -153,6 +170,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		Restore:         restore,
 		DatabaseDSN:     dbDSN,
 		Key:             key,
+		CryptoKey:       cryptoKey,
 	}
 	return cfg
 }

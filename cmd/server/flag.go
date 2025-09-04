@@ -9,6 +9,7 @@ var (
 	flagRestore         bool
 	flagConnDB          string
 	flagKey             string
+	flagCryptoKey       string
 )
 
 func parseFlags() {
@@ -18,5 +19,6 @@ func parseFlags() {
 	flag.BoolVar(&flagRestore, "r", true, "whether to restore metrics from file on startup")
 	flag.StringVar(&flagConnDB, "d", "", "host=<host> user=<user> password=<password> dbname=<dbname> sslmode=<disable/enable>")
 	flag.StringVar(&flagKey, "k", "", "secret key")
+	flag.StringVar(&flagCryptoKey, "crypto-key", "", "path to file private key")
 	flag.Parse()
 }
