@@ -23,7 +23,7 @@ type Agent struct {
 func NewAgent(cfg config.AgentConfig) *Agent {
 	return &Agent{
 		cfg:       cfg,
-		sender:    sender.NewHTTPSender(cfg.Address, cfg.Key),
+		sender:    sender.NewHTTPSender(cfg.Address, cfg.Key, cfg.CryptoKey),
 		collector: collector.NewRuntimeCollector(),
 	}
 }

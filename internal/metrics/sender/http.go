@@ -37,6 +37,7 @@ func NewHTTPSender(baseURL string, key string, cryptoKey string) *HTTPSender {
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 5 * time.Second},
 		retryDelays: []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
+		publicKey:   publicKey,
 		key:         key,
 	}
 }
@@ -94,7 +95,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		// Шифруем данные только если публичный ключ доступен
 		var requestBody []byte
 		var contentType string
 
@@ -117,7 +117,6 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 
 		req.Header.Set("Content-Type", contentType)
 
-		// Устанавливаем флаг шифрования только если используется шифрование
 		if s.publicKey != nil {
 			req.Header.Set("X-Encrypted", "true")
 		}
@@ -154,7 +153,6 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		// Шифруем данные только если публичный ключ доступен
 		var dataToCompress []byte
 		var contentType string
 

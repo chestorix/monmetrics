@@ -4,9 +4,11 @@ package api
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,9 +22,10 @@ import (
 // MetricsHandler обрабатывает HTTP-запросы для операций с метриками.
 // Содержит методы для обновления, получения и проверки метрик.
 type MetricsHandler struct {
-	service interfaces.Service
-	dbDNS   string
-	key     string
+	service    interfaces.Service
+	dbDNS      string
+	key        string
+	privateKey *rsa.PrivateKey
 }
 type jsonError struct {
 	Error string `json:"error"`
@@ -34,10 +37,20 @@ type jsonError struct {
 // - dbDNS: строка подключения к БД (может быть пустой)
 // - key: ключ для подписи данных (может быть пустым)
 // Возвращает указатель на новый MetricsHandler.
-func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
+func NewMetricsHandler(service interfaces.Service, dbDNS string, key string, crypotKey string) *MetricsHandler {
+	var privateKey *rsa.PrivateKey
+	var err error
+	if crypotKey != "" {
+		privateKey, err = utils.LoadPrivateKey(crypotKey)
+		if err != nil {
+			log.Printf("Error loading private key: %v", err)
+		}
+	}
+
 	return &MetricsHandler{service: service,
-		dbDNS: dbDNS,
-		key:   key,
+		dbDNS:      dbDNS,
+		key:        key,
+		privateKey: privateKey,
 	}
 }
 
@@ -215,7 +228,7 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := h.decryptRequestBody(r)
 	if err != nil {
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
@@ -282,9 +295,14 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	body, err := h.decryptRequestBody(r)
+	if err != nil {
+		renderError(w, "Failed to read/decrypt request body", http.StatusBadRequest)
+		return
+	}
 
 	var metric models.Metrics
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+	if err := json.Unmarshal(body, &metric); err != nil {
 		renderError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -382,6 +400,29 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// decryptRequestBody метод расшифровки запроса
+func (h *MetricsHandler) decryptRequestBody(r *http.Request) ([]byte, error) {
+	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+	if isEncrypted && h.privateKey == nil {
+		return nil, fmt.Errorf("encrypted data received but no private key available")
+	}
+	if !isEncrypted && h.privateKey != nil {
+		return nil, fmt.Errorf("unencrypted data received but encryption is expected")
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	if isEncrypted && h.privateKey != nil {
+		decryptedData, err := utils.DecryptData(body, h.privateKey)
+		if err != nil {
+			return nil, fmt.Errorf("decryption failed: %w", err)
+		}
+		return decryptedData, nil
+	}
+	return body, nil
 }
 
 // generateMetricsHTML генерирует HTML страницу со списком всех метрик.
