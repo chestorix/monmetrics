@@ -2,6 +2,8 @@
 package api
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/rsa"
@@ -228,11 +230,15 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	body, err := h.decryptRequestBody(r)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
+
+	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+	body, err = h.decryptRequestBody(body, isEncrypted)
 
 	if h.key != "" {
 		receivedHash := r.Header.Get("HashSHA256")
@@ -295,11 +301,15 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, err := h.decryptRequestBody(r)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		renderError(w, "Failed to read/decrypt request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
+
+	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+	body, err = h.decryptRequestBody(body, isEncrypted)
 
 	var metric models.Metrics
 	if err := json.Unmarshal(body, &metric); err != nil {
@@ -359,35 +369,67 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
+
+	log.Printf("UpdatesHandler called, method: %s", r.Method)
 	if r.Method != http.MethodPost {
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var reader io.Reader = r.Body
-
-	body, err := io.ReadAll(reader)
+	// Читаем тело запроса
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-
+		log.Printf("Failed to read request body: %v", err)
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
-	if h.key != "" {
-		check, hash := h.checkHash(r, body)
+	log.Printf("Raw request body size: %d bytes", len(body))
 
-		if !check {
-			renderError(w, "Invalid hash", http.StatusBadRequest)
+	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+	isCompressed := r.Header.Get("Content-Encoding") == "gzip"
+
+	var processedData []byte
+	if isCompressed {
+		log.Printf("Decompressing data...")
+		gz, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			log.Printf("Gzip decompression failed: %v", err)
+			renderError(w, "Decompression failed", http.StatusBadRequest)
 			return
 		}
-		w.Header().Set("HashSHA256", hash)
+		defer gz.Close()
+		processedData, err = io.ReadAll(gz)
+		if err != nil {
+			log.Printf("Gzip read failed: %v", err)
+			renderError(w, "Decompression read failed", http.StatusBadRequest)
+			return
+		}
+		log.Printf("Decompressed: %d -> %d bytes", len(body), len(processedData))
+	} else {
+		processedData = body
 	}
 
-	var metrics []models.Metrics
-	if err := json.Unmarshal(body, &metrics); err != nil {
-		renderError(w, fmt.Sprintf("Invalid JSON: %v\nBody: %s", err, string(body)), http.StatusBadRequest)
+	decryptedBody, err := h.decryptRequestBody(processedData, isEncrypted)
+	if err != nil {
+		log.Printf("Request decryption failed: %v", err)
+		renderError(w, fmt.Sprintf("Decryption failed: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("Final data for parsing: %d bytes", len(decryptedBody))
+	log.Printf("Data sample: %s", string(decryptedBody[:min(200, len(decryptedBody))]))
+
+	var metrics []models.Metrics
+	if err := json.Unmarshal(decryptedBody, &metrics); err != nil {
+		log.Printf("JSON unmarshal error: %v", err)
+		log.Printf("Problematic JSON: %s", string(decryptedBody))
+		renderError(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Successfully parsed %d metrics", len(metrics))
 
 	if len(metrics) == 0 {
 		renderError(w, "Empty batch", http.StatusBadRequest)
@@ -395,34 +437,44 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.service.UpdateMetricsBatch(ctx, metrics); err != nil {
+		log.Printf("Update metrics batch failed: %v", err)
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Successfully updated %d metrics", len(metrics))
 	w.WriteHeader(http.StatusOK)
 }
 
 // decryptRequestBody метод расшифровки запроса
-func (h *MetricsHandler) decryptRequestBody(r *http.Request) ([]byte, error) {
-	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+
+func (h *MetricsHandler) decryptRequestBody(data []byte, isEncrypted bool) ([]byte, error) {
+	log.Printf("Request encrypted: %v, private key available: %v",
+		isEncrypted, h.privateKey != nil)
+
 	if isEncrypted && h.privateKey == nil {
 		return nil, fmt.Errorf("encrypted data received but no private key available")
 	}
 	if !isEncrypted && h.privateKey != nil {
 		return nil, fmt.Errorf("unencrypted data received but encryption is expected")
 	}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
+
+	log.Printf("Received data size: %d bytes, encrypted: %v", len(data), isEncrypted)
+
 	if isEncrypted && h.privateKey != nil {
-		decryptedData, err := utils.DecryptData(body, h.privateKey)
+		log.Printf("Decrypting data with private key...")
+		decryptedData, err := utils.DecryptData(data, h.privateKey)
 		if err != nil {
+			log.Printf("Decryption failed: %v", err)
 			return nil, fmt.Errorf("decryption failed: %w", err)
 		}
+		log.Printf("Decryption successful: %d -> %d bytes", len(data), len(decryptedData))
+		log.Printf("Decrypted data (first 200 chars): %s", string(decryptedData[:min(200, len(decryptedData))]))
 		return decryptedData, nil
 	}
-	return body, nil
+
+	log.Printf("Plain text data: %s", string(data[:min(200, len(data))]))
+	return data, nil
 }
 
 // generateMetricsHTML генерирует HTML страницу со списком всех метрик.

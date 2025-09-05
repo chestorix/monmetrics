@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -148,56 +149,83 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
-	log.Printf("Sending batch of %d metrics to %s", len(metrics), s.baseURL)
+	log.Printf("SendBatch called with %d metrics to %s, encryption: %v",
+		len(metrics), s.baseURL, s.publicKey != nil)
+
 	return utils.Retry(3, s.retryDelays, func() error {
+		log.Printf("Attempting send (retry attempt)...")
+
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {
+			log.Printf("JSON marshaling error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
+		log.Printf("JSON data size: %d bytes", len(jsonData))
 
 		var dataToCompress []byte
 		var contentType string
 
 		if s.publicKey != nil {
+			log.Printf("Encrypting %d bytes of JSON data", len(jsonData))
 			encryptedData, err := utils.EncryptData(jsonData, s.publicKey)
 			if err != nil {
+				log.Printf("Encryption failed: %v", err)
 				return fmt.Errorf("encryption failed: %w", err)
 			}
 			dataToCompress = encryptedData
 			contentType = "application/octet-stream"
+			log.Printf("Encrypted to %d bytes", len(encryptedData))
 		} else {
 			dataToCompress = jsonData
 			contentType = "application/json"
+			log.Printf("No encryption, using plain JSON")
 		}
 
+		log.Printf("Compressing data (size: %d bytes)", len(dataToCompress))
 		var buf bytes.Buffer
 		gz := gzip.NewWriter(&buf)
 		if _, errWrite := gz.Write(dataToCompress); errWrite != nil {
+			log.Printf("Gzip write error: %v", errWrite)
 			return utils.ErrMaxRetriesExceeded
 		}
 		if errClose := gz.Close(); errClose != nil {
+			log.Printf("Gzip close error: %v", errClose)
 			return utils.ErrMaxRetriesExceeded
 		}
+		compressedData := buf.Bytes()
+		log.Printf("Compressed to %d bytes (ratio: %.1f%%)",
+			len(compressedData),
+			float64(len(compressedData))/float64(len(dataToCompress))*100)
 
 		req, err := http.NewRequest("POST", s.baseURL+"/updates/", &buf)
 		if err != nil {
+			log.Printf("Request creation error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
 
 		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("Content-Encoding", "gzip")
 
-		// Устанавливаем флаг шифрования только если используется шифрование
 		if s.publicKey != nil {
 			req.Header.Set("X-Encrypted", "true")
+			log.Printf("Set X-Encrypted header: true")
 		}
 
 		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
 			req.Header.Set("HashSHA256", hash)
+			log.Printf("Set HashSHA256 header: %s", hash)
 		}
 
+		log.Printf("Sending request to: %s", req.URL.String())
+		log.Printf("Request headers: %+v", req.Header)
+		log.Printf("Request body size: %d bytes", buf.Len())
+
+		startTime := time.Now()
 		resp, err := s.client.Do(req)
+		requestDuration := time.Since(startTime)
+
 		if err != nil {
+			log.Printf("HTTP request error: %v (duration: %v)", err, requestDuration)
 			if utils.IsNetworkError(err) {
 				return err
 			}
@@ -205,12 +233,24 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		}
 		defer resp.Body.Close()
 
+		log.Printf("Response received: status=%d, duration=%v", resp.StatusCode, requestDuration)
+		log.Printf("Response headers: %+v", resp.Header)
+
+		body, _ := io.ReadAll(resp.Body)
+		if len(body) > 0 {
+			log.Printf("Response body: %s", string(body))
+		}
+
 		if resp.StatusCode >= 500 {
+			log.Printf("Server error: %d", resp.StatusCode)
 			return fmt.Errorf("server error: %d", resp.StatusCode)
 		}
 		if resp.StatusCode != http.StatusOK {
+			log.Printf("Unexpected status code: %d", resp.StatusCode)
 			return utils.ErrMaxRetriesExceeded
 		}
+
+		log.Printf("SendBatch completed successfully")
 		return nil
 	})
 }
