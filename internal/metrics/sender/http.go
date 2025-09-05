@@ -69,7 +69,7 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
-	log.Printf("Sending JSON of %d metrics to %s", metric, s.baseURL)
+	log.Printf("Sending JSON metric %s to %s", metric.Name, s.baseURL)
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name

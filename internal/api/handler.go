@@ -239,6 +239,10 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 
 	isEncrypted := r.Header.Get("X-Encrypted") == "true"
 	body, err = h.decryptRequestBody(body, isEncrypted)
+	if err != nil {
+		renderError(w, fmt.Sprintf("Decryption failed: %v", err), http.StatusBadRequest)
+		return
+	}
 
 	if h.key != "" {
 		receivedHash := r.Header.Get("HashSHA256")
@@ -309,7 +313,12 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 	defer r.Body.Close()
 
 	isEncrypted := r.Header.Get("X-Encrypted") == "true"
+
 	body, err = h.decryptRequestBody(body, isEncrypted)
+	if err != nil {
+		renderError(w, fmt.Sprintf("Decryption failed: %v", err), http.StatusBadRequest)
+		return
+	}
 
 	var metric models.Metrics
 	if err := json.Unmarshal(body, &metric); err != nil {
