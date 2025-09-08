@@ -31,6 +31,7 @@ func main() {
 	}
 
 	var cfg config.CfgAgentENV
+	cfg.ConfigFile = flagConfigFile
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
