@@ -62,14 +62,21 @@ func (a *Agent) collectRuntimeMetrics(ctx context.Context, metricsChan chan<- []
 		case <-ticker.C:
 			metrics := a.collector.Collect()
 			log.Printf("Collected %d runtime metrics", len(metrics))
-			metricsChan <- a.collector.Collect()
+
+			select {
+			case <-ctx.Done():
+				log.Println("Stopping runtime metrics collection")
+				return
+			case metricsChan <- metrics:
+
+			}
+
 		case <-ctx.Done():
 			log.Println("Stopping runtime metrics collection")
 			return
 		}
 	}
 }
-
 func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- []models.Metric) {
 	log.Println("Starting gopsutil metrics collection")
 	ticker := time.NewTicker(a.cfg.PollInterval)
@@ -95,8 +102,16 @@ func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- [
 				}
 			}
 			log.Printf("Collected %d gopsutil metrics", len(gopsutilMetrics))
+
 			if len(gopsutilMetrics) > 0 {
-				metricsChan <- gopsutilMetrics
+
+				select {
+				case <-ctx.Done():
+					log.Println("Stopping gopsutil metrics collection")
+					return
+				case metricsChan <- gopsutilMetrics:
+
+				}
 			}
 
 		case <-ctx.Done():
@@ -106,53 +121,6 @@ func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- [
 	}
 }
 
-/*
-	func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.Metric, rateLimit int) {
-		var wg sync.WaitGroup
-		limiter := make(chan struct{}, rateLimit)
-
-		for metricsBatch := range metricsChan {
-			limiter <- struct{}{}
-			wg.Add(1)
-
-			go func(batch []models.Metric) {
-				defer func() {
-					<-limiter
-					wg.Done()
-				}()
-
-				var metricsToSend []models.Metrics
-				for _, m := range batch {
-					metric := models.Metrics{
-						ID:    m.Name,
-						MType: m.Type,
-					}
-					switch m.Type {
-					case models.Gauge:
-						if val, ok := m.Value.(float64); ok {
-							metric.Value = &val
-						}
-					case models.Counter:
-						if val, ok := m.Value.(int64); ok {
-							metric.Delta = &val
-						}
-					}
-					metricsToSend = append(metricsToSend, metric)
-				}
-
-				if err := a.sender.SendBatch(metricsToSend); err != nil {
-					for _, metric := range batch {
-						if err := a.sender.SendJSON(metric); err != nil {
-							continue
-						}
-					}
-				}
-			}(metricsBatch)
-		}
-
-		wg.Wait()
-	}
-*/
 func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.Metric, rateLimit int) {
 	log.Println("Starting metrics processing (simple mode)")
 
@@ -198,6 +166,16 @@ func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.
 			}
 
 		case <-ctx.Done():
+
+			if len(metricsBuffer) > 0 {
+				log.Printf("Sending remaining %d metrics before shutdown", len(metricsBuffer))
+				if err := a.sender.SendBatch(metricsBuffer); err != nil {
+					log.Printf("Final send failed: %v", err)
+				} else {
+					log.Printf("Final send successful")
+				}
+			}
+			log.Println("Stopping metrics processing")
 			return
 		}
 	}
