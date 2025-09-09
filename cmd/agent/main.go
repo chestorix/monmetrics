@@ -30,7 +30,7 @@ func main() {
 	}
 
 	var cfg config.CfgAgentENV
-	if err := env.Parse(&cfg); err != nil {
+	if err := env.Parse(cfg); err != nil {
 		log.Fatal("Failed to parse env vars:", err)
 	}
 	agentCfg := cfg.ApplyFlags(flags)
