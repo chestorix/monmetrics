@@ -7,8 +7,8 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -22,16 +22,17 @@ type HTTPSender struct {
 	key         string
 	publicKey   *rsa.PublicKey
 	client      *http.Client
+	logger      *logrus.Logger
 }
 
-func NewHTTPSender(baseURL string, key string, cryptoKey string) *HTTPSender {
+func NewHTTPSender(baseURL string, key string, cryptoKey string, logger *logrus.Logger) *HTTPSender {
 
 	var err error
 	var publicKey *rsa.PublicKey
 	if cryptoKey != "" {
 		publicKey, err = utils.LoadPublicKey(cryptoKey)
 		if err != nil {
-			log.Printf("Failed to load public key: %v", err)
+			logger.Infof("Failed to load public key: %v", err)
 		}
 	}
 	return &HTTPSender{
@@ -40,6 +41,7 @@ func NewHTTPSender(baseURL string, key string, cryptoKey string) *HTTPSender {
 		retryDelays: []time.Duration{time.Second, 3 * time.Second, 5 * time.Second},
 		publicKey:   publicKey,
 		key:         key,
+		logger:      logger,
 	}
 }
 
@@ -69,7 +71,7 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
-	log.Printf("Sending JSON metric %s to %s", metric.Name, s.baseURL)
+	s.logger.Info("Sending JSON metric %s to %s", metric.Name, s.baseURL)
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name
@@ -149,57 +151,57 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
-	log.Printf("SendBatch called with %d metrics to %s, encryption: %v",
+	s.logger.Info("SendBatch called with %d metrics to %s, encryption: %v",
 		len(metrics), s.baseURL, s.publicKey != nil)
 
 	return utils.Retry(3, s.retryDelays, func() error {
-		log.Printf("Attempting send (retry attempt)...")
+		s.logger.Info("Attempting send (retry attempt)...")
 
 		jsonData, err := json.Marshal(metrics)
 		if err != nil {
-			log.Printf("JSON marshaling error: %v", err)
+			s.logger.Errorf("JSON marshaling error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
-		log.Printf("JSON data size: %d bytes", len(jsonData))
+		s.logger.Info("JSON data size: %d bytes", len(jsonData))
 
 		var dataToCompress []byte
 		var contentType string
 
 		if s.publicKey != nil {
-			log.Printf("Encrypting %d bytes of JSON data", len(jsonData))
+			s.logger.Info("Encrypting %d bytes of JSON data", len(jsonData))
 			encryptedData, err := utils.EncryptData(jsonData, s.publicKey)
 			if err != nil {
-				log.Printf("Encryption failed: %v", err)
+				s.logger.Errorf("Encryption failed: %v", err)
 				return fmt.Errorf("encryption failed: %w", err)
 			}
 			dataToCompress = encryptedData
 			contentType = "application/octet-stream"
-			log.Printf("Encrypted to %d bytes", len(encryptedData))
+			s.logger.Infof("Encrypted to %d bytes", len(encryptedData))
 		} else {
 			dataToCompress = jsonData
 			contentType = "application/json"
-			log.Printf("No encryption, using plain JSON")
+			s.logger.Infof("No encryption, using plain JSON")
 		}
 
-		log.Printf("Compressing data (size: %d bytes)", len(dataToCompress))
+		s.logger.Info("Compressing data (size: %d bytes)", len(dataToCompress))
 		var buf bytes.Buffer
 		gz := gzip.NewWriter(&buf)
 		if _, errWrite := gz.Write(dataToCompress); errWrite != nil {
-			log.Printf("Gzip write error: %v", errWrite)
+			s.logger.Infof("Gzip write error: %v", errWrite)
 			return utils.ErrMaxRetriesExceeded
 		}
 		if errClose := gz.Close(); errClose != nil {
-			log.Printf("Gzip close error: %v", errClose)
+			s.logger.Infof("Gzip close error: %v", errClose)
 			return utils.ErrMaxRetriesExceeded
 		}
 		compressedData := buf.Bytes()
-		log.Printf("Compressed to %d bytes (ratio: %.1f%%)",
+		s.logger.Info("Compressed to %d bytes (ratio: %.1f%%)",
 			len(compressedData),
 			float64(len(compressedData))/float64(len(dataToCompress))*100)
 
 		req, err := http.NewRequest("POST", s.baseURL+"/updates/", &buf)
 		if err != nil {
-			log.Printf("Request creation error: %v", err)
+			s.logger.Errorf("Request creation error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
 
@@ -208,24 +210,24 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 
 		if s.publicKey != nil {
 			req.Header.Set("X-Encrypted", "true")
-			log.Printf("Set X-Encrypted header: true")
+			s.logger.Info("Set X-Encrypted header: true")
 		}
 
 		if hash := utils.CalculateHash(jsonData, s.key); hash != "" {
 			req.Header.Set("HashSHA256", hash)
-			log.Printf("Set HashSHA256 header: %s", hash)
+			s.logger.Infof("Set HashSHA256 header: %s", hash)
 		}
 
-		log.Printf("Sending request to: %s", req.URL.String())
-		log.Printf("Request headers: %+v", req.Header)
-		log.Printf("Request body size: %d bytes", buf.Len())
+		s.logger.Infof("Sending request to: %s", req.URL.String())
+		s.logger.Infof("Request headers: %+v", req.Header)
+		s.logger.Infof("Request body size: %d bytes", buf.Len())
 
 		startTime := time.Now()
 		resp, err := s.client.Do(req)
 		requestDuration := time.Since(startTime)
 
 		if err != nil {
-			log.Printf("HTTP request error: %v (duration: %v)", err, requestDuration)
+			s.logger.Infof("HTTP request error: %v (duration: %v)", err, requestDuration)
 			if utils.IsNetworkError(err) {
 				return err
 			}
@@ -233,24 +235,24 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		}
 		defer resp.Body.Close()
 
-		log.Printf("Response received: status=%d, duration=%v", resp.StatusCode, requestDuration)
-		log.Printf("Response headers: %+v", resp.Header)
+		s.logger.Infof("Response received: status=%d, duration=%v", resp.StatusCode, requestDuration)
+		s.logger.Infof("Response headers: %+v", resp.Header)
 
 		body, _ := io.ReadAll(resp.Body)
 		if len(body) > 0 {
-			log.Printf("Response body: %s", string(body))
+			s.logger.Infof("Response body: %s", string(body))
 		}
 
 		if resp.StatusCode >= 500 {
-			log.Printf("Server error: %d", resp.StatusCode)
+			s.logger.Infof("Server error: %d", resp.StatusCode)
 			return fmt.Errorf("server error: %d", resp.StatusCode)
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Unexpected status code: %d", resp.StatusCode)
+			s.logger.Infof("Unexpected status code: %d", resp.StatusCode)
 			return utils.ErrMaxRetriesExceeded
 		}
 
-		log.Printf("SendBatch completed successfully")
+		s.logger.Infof("SendBatch completed successfully")
 		return nil
 	})
 }

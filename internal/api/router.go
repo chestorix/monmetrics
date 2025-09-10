@@ -2,6 +2,7 @@
 package api
 
 import (
+	"crypto/rsa"
 	"net/http"
 	"net/http/pprof"
 
@@ -16,14 +17,14 @@ type Router struct {
 	logger *logrus.Logger
 }
 
-func NewRouter(logger *logrus.Logger) *Router {
+func NewRouter(logger *logrus.Logger, privateKey *rsa.PrivateKey) *Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware2.NewLoggerMiddleware(logger))
 	r.Use(middleware.Recoverer)
-	r.Use(middleware2.GzipMiddleware)
+	r.Use(middleware2.GzipDecryptMiddleware(privateKey, logger))
 
 	return &Router{
 		Router: r,

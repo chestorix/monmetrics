@@ -72,7 +72,7 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 		var err error
 		fileConfig, err = LoadAgentConfigFromFile(cfg.ConfigFile)
 		if err != nil {
-			log.Printf("Warning: failed to load config from file: %v", err)
+			fmt.Errorf("Warning: failed to load config from file: %v", err)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		var err error
 		fileConfig, err = LoadServerConfigFromFile(conf.ConfigFile)
 		if err != nil {
-			log.Printf("Warning: failed to load config from file: %v", err)
+			fmt.Errorf("Warning: failed to load config from file: %v", err)
 		}
 	}
 

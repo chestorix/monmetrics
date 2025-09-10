@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 )
 
@@ -131,19 +130,14 @@ func EncryptData(data []byte, publicKey *rsa.PublicKey) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encrypt AES key with RSA: %w", err)
 	}
 
-	log.Printf("Encrypted AES key size: %d bytes", len(encryptedKey))
-	log.Printf("Encrypted data size: %d bytes", len(encryptedData))
-
 	keySize := len(encryptedKey)
 	result := make([]byte, 4+keySize+len(encryptedData))
 
 	binary.BigEndian.PutUint32(result[0:4], uint32(keySize))
-	log.Printf("Writing key size to header: %d bytes", keySize)
 
 	copy(result[4:4+keySize], encryptedKey)
 	copy(result[4+keySize:], encryptedData)
 
-	log.Printf("Total encrypted size: %d bytes", len(result))
 	return result, nil
 }
 
@@ -153,14 +147,11 @@ func DecryptData(data []byte, privateKey *rsa.PrivateKey) ([]byte, error) {
 		return data, nil
 	}
 
-	log.Printf("DecryptData: input size %d bytes", len(data))
-
 	if len(data) < 4 {
 		return nil, fmt.Errorf("invalid encrypted data: too short for key size header")
 	}
 
 	keySize := int(binary.BigEndian.Uint32(data[0:4]))
-	log.Printf("Key size from header: %d bytes", keySize)
 
 	if len(data) < 4+keySize {
 		return nil, fmt.Errorf("invalid encrypted data: too short, need %d bytes for key, have %d",
@@ -170,14 +161,10 @@ func DecryptData(data []byte, privateKey *rsa.PrivateKey) ([]byte, error) {
 	encryptedKey := data[4 : 4+keySize]
 	encryptedData := data[4+keySize:]
 
-	log.Printf("Encrypted key: %d bytes, encrypted data: %d bytes",
-		len(encryptedKey), len(encryptedData))
-
 	aesKey, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, encryptedKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt AES key: %w", err)
 	}
-	log.Printf("AES key decrypted: %d bytes", len(aesKey))
 
 	block, err := aes.NewCipher(aesKey)
 	if err != nil {
@@ -190,20 +177,17 @@ func DecryptData(data []byte, privateKey *rsa.PrivateKey) ([]byte, error) {
 	}
 
 	nonceSize := gcm.NonceSize()
-	log.Printf("GCM nonce size: %d bytes", nonceSize)
 
 	if len(encryptedData) < nonceSize {
 		return nil, fmt.Errorf("invalid encrypted data: missing nonce")
 	}
 
 	nonce, ciphertext := encryptedData[:nonceSize], encryptedData[nonceSize:]
-	log.Printf("Nonce: %d bytes, ciphertext: %d bytes", len(nonce), len(ciphertext))
 
 	decryptedData, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt data: %w", err)
 	}
 
-	log.Printf("Successfully decrypted to %d bytes", len(decryptedData))
 	return decryptedData, nil
 }

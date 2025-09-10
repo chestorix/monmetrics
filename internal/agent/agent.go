@@ -3,7 +3,7 @@ package agent
 
 import (
 	"context"
-	"log"
+	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 
@@ -19,41 +19,56 @@ type Agent struct {
 	collector *collector.RuntimeCollector
 	sender    *sender.HTTPSender
 	cfg       config.AgentConfig
+	logger    *logrus.Logger
 }
 
-func NewAgent(cfg config.AgentConfig) *Agent {
+func NewAgent(cfg config.AgentConfig, logger *logrus.Logger) *Agent {
 	return &Agent{
 		cfg:       cfg,
-		sender:    sender.NewHTTPSender(cfg.Address, cfg.Key, cfg.CryptoKey),
+		sender:    sender.NewHTTPSender(cfg.Address, cfg.Key, cfg.CryptoKey, logger),
 		collector: collector.NewRuntimeCollector(),
+		logger:    logger,
 	}
 }
 
-func (a *Agent) Run(ctx context.Context, rateLimit int) {
-	log.Println("Starting agent...")
+func (a *Agent) Run(ctx context.Context, rateLimit int) error {
+	a.logger.Info("Starting agent...")
 	metricsChan := make(chan []models.Metric, 100)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	collectCtx, cancelCollect := context.WithCancel(ctx)
+	defer cancelCollect()
 
 	go func() {
 		defer wg.Done()
-		a.collectRuntimeMetrics(ctx, metricsChan)
+		a.collectRuntimeMetrics(collectCtx, metricsChan)
 	}()
 
 	go func() {
 		defer wg.Done()
-		a.collectGopsutilMetrics(ctx, metricsChan)
+		a.collectGopsutilMetrics(collectCtx, metricsChan)
 	}()
+	processCtx, cancelProcess := context.WithCancel(ctx)
+	defer cancelProcess()
 
-	a.processMetrics(ctx, metricsChan, rateLimit)
+	var processWg sync.WaitGroup
+	processWg.Add(1)
+	go func() {
+		defer processWg.Done()
+		a.processMetrics(processCtx, metricsChan, rateLimit)
+	}()
 
 	wg.Wait()
 	close(metricsChan)
+	processWg.Wait()
+
+	a.logger.Info("Agent stopped gracefully")
+	return nil
 }
 
 func (a *Agent) collectRuntimeMetrics(ctx context.Context, metricsChan chan<- []models.Metric) {
-	log.Println("Starting runtime metrics collection")
+	a.logger.Info("Starting runtime metrics collection")
 	ticker := time.NewTicker(a.cfg.PollInterval)
 	defer ticker.Stop()
 
@@ -61,24 +76,24 @@ func (a *Agent) collectRuntimeMetrics(ctx context.Context, metricsChan chan<- []
 		select {
 		case <-ticker.C:
 			metrics := a.collector.Collect()
-			log.Printf("Collected %d runtime metrics", len(metrics))
+			a.logger.Infof("Collected %d runtime metrics", len(metrics))
 
 			select {
 			case <-ctx.Done():
-				log.Println("Stopping runtime metrics collection")
+				a.logger.Info("Stopping runtime metrics collection")
 				return
 			case metricsChan <- metrics:
 
 			}
 
 		case <-ctx.Done():
-			log.Println("Stopping runtime metrics collection")
+			a.logger.Info("Stopping runtime metrics collection")
 			return
 		}
 	}
 }
 func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- []models.Metric) {
-	log.Println("Starting gopsutil metrics collection")
+	a.logger.Info("Starting gopsutil metrics collection")
 	ticker := time.NewTicker(a.cfg.PollInterval)
 	defer ticker.Stop()
 
@@ -101,13 +116,13 @@ func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- [
 					)
 				}
 			}
-			log.Printf("Collected %d gopsutil metrics", len(gopsutilMetrics))
+			a.logger.Infof("Collected %d gopsutil metrics", len(gopsutilMetrics))
 
 			if len(gopsutilMetrics) > 0 {
 
 				select {
 				case <-ctx.Done():
-					log.Println("Stopping gopsutil metrics collection")
+					a.logger.Info("Stopping gopsutil metrics collection")
 					return
 				case metricsChan <- gopsutilMetrics:
 
@@ -115,14 +130,14 @@ func (a *Agent) collectGopsutilMetrics(ctx context.Context, metricsChan chan<- [
 			}
 
 		case <-ctx.Done():
-			log.Println("Stopping gopsutil metrics collection")
+			a.logger.Info("Stopping gopsutil metrics collection")
 			return
 		}
 	}
 }
 
 func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.Metric, rateLimit int) {
-	log.Println("Starting metrics processing (simple mode)")
+	a.logger.Info("Starting metrics processing (simple mode)")
 
 	sendTicker := time.NewTicker(a.cfg.ReportInterval)
 	defer sendTicker.Stop()
@@ -156,11 +171,11 @@ func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.
 
 		case <-sendTicker.C:
 			if len(metricsBuffer) > 0 {
-				log.Printf("Sending %d metrics", len(metricsBuffer))
+				a.logger.Infof("Sending %d metrics", len(metricsBuffer))
 				if err := a.sender.SendBatch(metricsBuffer); err != nil {
-					log.Printf("Send failed: %v", err)
+					a.logger.Infof("Send failed: %v", err)
 				} else {
-					log.Printf("Send successful")
+					a.logger.Infof("Send successful")
 				}
 				metricsBuffer = nil
 			}
@@ -168,14 +183,14 @@ func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.
 		case <-ctx.Done():
 
 			if len(metricsBuffer) > 0 {
-				log.Printf("Sending remaining %d metrics before shutdown", len(metricsBuffer))
+				a.logger.Infof("Sending remaining %d metrics before shutdown", len(metricsBuffer))
 				if err := a.sender.SendBatch(metricsBuffer); err != nil {
-					log.Printf("Final send failed: %v", err)
+					a.logger.Infof("Final send failed: %v", err)
 				} else {
-					log.Printf("Final send successful")
+					a.logger.Info("Final send successful")
 				}
 			}
-			log.Println("Stopping metrics processing")
+			a.logger.Info("Stopping metrics processing")
 			return
 		}
 	}
