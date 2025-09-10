@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/caarlos0/env/v11"
-	"log"
+	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+var logger = logrus.New()
 
 // ServerConfig содержит конфигурационные параметры сервера.
 type ServerConfig struct {
@@ -63,7 +65,7 @@ func ensureHTTP(address string) string {
 
 func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 	if err := env.Parse(cfg); err != nil {
-		log.Fatal("Failed to parse env vars:", err)
+		logger.Fatal("failed to parse env vars:", err)
 	}
 
 	// Загружаем конфигурацию из файла, если указан
@@ -72,7 +74,7 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 		var err error
 		fileConfig, err = LoadAgentConfigFromFile(cfg.ConfigFile)
 		if err != nil {
-			fmt.Errorf("Warning: failed to load config from file: %v", err)
+			logger.Warnf("warning: failed to load config from file: %v", err)
 		}
 	}
 
@@ -129,7 +131,7 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 
 func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 	if err := env.Parse(conf); err != nil {
-		log.Fatal("Failed to parse env vars:", err)
+		logger.Fatal("failed to parse env vars:", err)
 	}
 
 	var fileConfig ServerConfig
@@ -137,7 +139,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		var err error
 		fileConfig, err = LoadServerConfigFromFile(conf.ConfigFile)
 		if err != nil {
-			fmt.Errorf("Warning: failed to load config from file: %v", err)
+			logger.Warnf("warning: failed to load config from file: %v", err)
 		}
 	}
 
