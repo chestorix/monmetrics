@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/domain/interfaces"
 	"github.com/chestorix/monmetrics/internal/metrics/repository"
 	"github.com/chestorix/monmetrics/internal/utils"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/chestorix/monmetrics/internal/api"
-	"github.com/chestorix/monmetrics/internal/config"
 	"github.com/chestorix/monmetrics/internal/metrics/service"
 	"github.com/sirupsen/logrus"
 )
@@ -38,11 +38,15 @@ func main() {
 		"flagRunAddr":         flagRunAddr,
 		"flagStoreInterval":   flagStoreInterval,
 		"flagFileStoragePath": flagFileStoragePath,
-		"flagConnDB":          flagConnDB,
+		"flagRestore":         flagRestore,
+		"flagDatabaseDSN":     flagConnDB,
 		"flagKey":             flagKey,
+		"flagCryptoKey":       flagCryptoKey,
 	}
 	logger = setupLogger()
-	cfg := &config.CfgServerENV{}
+	cfg := &config.CfgServerENV{
+		ConfigFile: flagConfigFile,
+	}
 	serverCfg := cfg.ApplyFlags(flags)
 	var err error
 	storage, err := repository.NewInitStorage().CreateStorage(cfg.DatabaseDSN, cfg.FileStoragePath)

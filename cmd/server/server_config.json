@@ -1,0 +1,9 @@
+{
+  "address": "localhost:8080",
+  "restore": true,
+  "store_interval": "10s",
+  "store_file": "",
+  "database_dsn": "host=localhost user=postgres password=qweasd dbname=metrics sslmode=disable",
+  "crypto_key": "private.pem",
+  "key": ""
+}

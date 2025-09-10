@@ -3,8 +3,10 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +14,8 @@ import (
 	"github.com/chestorix/monmetrics/internal/api"
 	models "github.com/chestorix/monmetrics/internal/metrics"
 )
+
+var testPrivateKey *rsa.PrivateKey
 
 // mockService - полная заглушка для интерфейса interfaces.Service
 type mockService struct {
@@ -160,7 +164,7 @@ func (m *mockService) CheckDB(ctx context.Context, dsn string) error {
 // Примеры использования всех хендлеров
 func ExampleMetricsHandler_UpdateHandler() {
 	mock := newMockService()
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.UpdateHandler))
 	defer ts.Close()
@@ -179,7 +183,7 @@ func ExampleMetricsHandler_UpdateHandler() {
 func ExampleMetricsHandler_GetValuesHandler() {
 	mock := newMockService()
 	mock.gauges["test_metric"] = 123.45
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.GetValuesHandler))
 	defer ts.Close()
@@ -205,7 +209,7 @@ func ExampleMetricsHandler_GetAllMetricsHandler() {
 	mock := newMockService()
 	mock.gauges["metric1"] = 1.23
 	mock.counters["metric2"] = 42
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.GetAllMetricsHandler))
 	defer ts.Close()
@@ -223,7 +227,7 @@ func ExampleMetricsHandler_GetAllMetricsHandler() {
 
 func ExampleMetricsHandler_UpdateJSONHandler() {
 	mock := newMockService()
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	metric := models.Metrics{
 		ID:    "test_metric",
@@ -254,7 +258,7 @@ func ExampleMetricsHandler_UpdateJSONHandler() {
 func ExampleMetricsHandler_ValueJSONHandler() {
 	mock := newMockService()
 	mock.gauges["test_metric"] = 123.45
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	metric := models.Metrics{
 		ID:    "test_metric",
@@ -284,7 +288,7 @@ func ExampleMetricsHandler_ValueJSONHandler() {
 func ExampleMetricsHandler_PingHandler() {
 	mock := newMockService()
 	mock.dbError = fmt.Errorf("DB connection error")
-	handler := api.NewMetricsHandler(mock, "test_dsn", "")
+	handler := api.NewMetricsHandler(mock, "test_dsn", "", testPrivateKey, logrus.New())
 
 	ts := httptest.NewServer(http.HandlerFunc(handler.PingHandler))
 	defer ts.Close()
@@ -302,7 +306,7 @@ func ExampleMetricsHandler_PingHandler() {
 
 func ExampleMetricsHandler_UpdatesHandler() {
 	mock := newMockService()
-	handler := api.NewMetricsHandler(mock, "", "")
+	handler := api.NewMetricsHandler(mock, "", "", testPrivateKey, logrus.New())
 
 	metrics := []models.Metrics{
 		{

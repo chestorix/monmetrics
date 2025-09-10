@@ -23,6 +23,7 @@ func (i *InitStorage) CreateStorage(dbDSN, filePath string) (interfaces.Reposito
 	var err error
 
 	if dbDSN != "" {
+		fmt.Println("Print dbDSN", dbDSN)
 		err = utils.Retry(3, i.retryDelays, func() error {
 			storage, err = NewPostgresStorage(dbDSN)
 			return err

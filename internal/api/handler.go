@@ -4,8 +4,10 @@ package api
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"strconv"
@@ -20,9 +22,11 @@ import (
 // MetricsHandler обрабатывает HTTP-запросы для операций с метриками.
 // Содержит методы для обновления, получения и проверки метрик.
 type MetricsHandler struct {
-	service interfaces.Service
-	dbDNS   string
-	key     string
+	service    interfaces.Service
+	dbDNS      string
+	key        string
+	privateKey *rsa.PrivateKey
+	logger     *logrus.Logger
 }
 type jsonError struct {
 	Error string `json:"error"`
@@ -34,10 +38,13 @@ type jsonError struct {
 // - dbDNS: строка подключения к БД (может быть пустой)
 // - key: ключ для подписи данных (может быть пустым)
 // Возвращает указатель на новый MetricsHandler.
-func NewMetricsHandler(service interfaces.Service, dbDNS string, key string) *MetricsHandler {
+func NewMetricsHandler(service interfaces.Service, dbDNS string, key string, privateKey *rsa.PrivateKey, logger *logrus.Logger) *MetricsHandler {
+
 	return &MetricsHandler{service: service,
-		dbDNS: dbDNS,
-		key:   key,
+		dbDNS:      dbDNS,
+		key:        key,
+		privateKey: privateKey,
+		logger:     logger,
 	}
 }
 
@@ -220,6 +227,7 @@ func (h *MetricsHandler) UpdateJSONHandler(w http.ResponseWriter, r *http.Reques
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
 	if h.key != "" {
 		receivedHash := r.Header.Get("HashSHA256")
@@ -282,9 +290,15 @@ func (h *MetricsHandler) ValueJSONHandler(w http.ResponseWriter, r *http.Request
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		renderError(w, "Failed to read/decrypt request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
 
 	var metric models.Metrics
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+	if err := json.Unmarshal(body, &metric); err != nil {
 		renderError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -341,35 +355,32 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*2)
 	defer cancel()
 	w.Header().Set("Content-Type", "application/json")
+
+	h.logger.Infof("UpdatesHandler called, method: %s", r.Method)
 	if r.Method != http.MethodPost {
 		renderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var reader io.Reader = r.Body
-
-	body, err := io.ReadAll(reader)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-
+		h.logger.Errorf("Failed to read request body: %v", err)
 		renderError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
-	if h.key != "" {
-		check, hash := h.checkHash(r, body)
-
-		if !check {
-			renderError(w, "Invalid hash", http.StatusBadRequest)
-			return
-		}
-		w.Header().Set("HashSHA256", hash)
-	}
+	h.logger.Debugf("Request body size: %d bytes", len(body))
 
 	var metrics []models.Metrics
 	if err := json.Unmarshal(body, &metrics); err != nil {
-		renderError(w, fmt.Sprintf("Invalid JSON: %v\nBody: %s", err, string(body)), http.StatusBadRequest)
+		h.logger.Errorf("JSON unmarshal error: %v", err)
+		h.logger.Debugf("Problematic JSON: %s", string(body))
+		renderError(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	h.logger.Infof("Successfully parsed %d metrics", len(metrics))
 
 	if len(metrics) == 0 {
 		renderError(w, "Empty batch", http.StatusBadRequest)
@@ -377,10 +388,12 @@ func (h *MetricsHandler) UpdatesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := h.service.UpdateMetricsBatch(ctx, metrics); err != nil {
+		h.logger.Errorf("Update metrics batch failed: %v", err)
 		renderError(w, fmt.Sprintf("Failed to update metrics: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	h.logger.Infof("Successfully updated %d metrics", len(metrics))
 	w.WriteHeader(http.StatusOK)
 }
 
