@@ -71,7 +71,7 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendJSON(metric models.Metric) error {
-	s.logger.Info("Sending JSON metric %s to %s", metric.Name, s.baseURL)
+	s.logger.Infof("Sending JSON metric %s to %s", metric.Name, s.baseURL)
 	return utils.Retry(3, s.retryDelays, func() error {
 		var m models.Metrics
 		m.ID = metric.Name
@@ -151,7 +151,7 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 }
 
 func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
-	s.logger.Info("SendBatch called with %d metrics to %s, encryption: %v",
+	s.logger.Infof("SendBatch called with %d metrics to %s, encryption: %v",
 		len(metrics), s.baseURL, s.publicKey != nil)
 
 	return utils.Retry(3, s.retryDelays, func() error {
@@ -162,13 +162,13 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			s.logger.Errorf("JSON marshaling error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
-		s.logger.Info("JSON data size: %d bytes", len(jsonData))
+		s.logger.Infof("JSON data size: %d bytes", len(jsonData))
 
 		var dataToCompress []byte
 		var contentType string
 
 		if s.publicKey != nil {
-			s.logger.Info("Encrypting %d bytes of JSON data", len(jsonData))
+			s.logger.Infof("Encrypting %d bytes of JSON data", len(jsonData))
 			encryptedData, err := utils.EncryptData(jsonData, s.publicKey)
 			if err != nil {
 				s.logger.Errorf("Encryption failed: %v", err)
@@ -183,7 +183,7 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			s.logger.Infof("No encryption, using plain JSON")
 		}
 
-		s.logger.Info("Compressing data (size: %d bytes)", len(dataToCompress))
+		s.logger.Infof("Compressing data (size: %d bytes)", len(dataToCompress))
 		var buf bytes.Buffer
 		gz := gzip.NewWriter(&buf)
 		if _, errWrite := gz.Write(dataToCompress); errWrite != nil {
@@ -195,7 +195,7 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			return utils.ErrMaxRetriesExceeded
 		}
 		compressedData := buf.Bytes()
-		s.logger.Info("Compressed to %d bytes (ratio: %.1f%%)",
+		s.logger.Infof("Compressed to %d bytes (ratio: %.1f%%)",
 			len(compressedData),
 			float64(len(compressedData))/float64(len(dataToCompress))*100)
 
