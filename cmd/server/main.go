@@ -42,6 +42,7 @@ func main() {
 		"flagDatabaseDSN":     flagConnDB,
 		"flagKey":             flagKey,
 		"flagCryptoKey":       flagCryptoKey,
+		"flagTrustedSubnet":   flagTrustedSubnet,
 	}
 	logger = setupLogger()
 	cfg := &config.CfgServerENV{

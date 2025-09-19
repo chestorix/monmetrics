@@ -23,6 +23,7 @@ type ServerConfig struct {
 	CryptoKey       string        `json:"crypto_key"`     // Путь к файлу с приватным ключом
 	StoreInterval   time.Duration `json:"store_interval"` // интервал сохранения метрик на диск (0 - синхронная запись)
 	Restore         bool          `json:"restore"`        // восстанавливать метрики из файла при старте
+	TrustedSubnet   string        `json:"trusted_subnet"` // указывает доверенные сети
 }
 
 // AgentConfig содержит конфигурационные параметры агента.
@@ -54,6 +55,7 @@ type CfgServerENV struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	Restore         bool   `env:"RESTORE"`
 	ConfigFile      string `env:"CONFIG"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
 }
 
 func ensureHTTP(address string) string {
@@ -150,6 +152,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 	flagRestore := getBoolFromMap(mapFlags, "flagRestore")
 	flagDatabaseDSN := getStringFromMap(mapFlags, "flagDatabaseDSN")
 	flagCryptoKey := getStringFromMap(mapFlags, "flagCryptoKey")
+	flagTrustedSubnet := getStringFromMap(mapFlags, "flagTrustedSubnet")
 
 	key := firstNonEmpty(flagKey, conf.SecretKey, fileConfig.Key)
 	serverAddress := firstNonEmpty(flagRunAddr, conf.Address, fileConfig.Address)
@@ -186,6 +189,9 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		fileConfig.CryptoKey,
 	)
 
+	trustedSubnet := firstNonEmpty(
+		flagTrustedSubnet, conf.TrustedSubnet, fileConfig.TrustedSubnet)
+
 	if serverAddress != "" && !strings.Contains(serverAddress, ":") {
 		serverAddress = ":" + serverAddress
 	}
@@ -198,6 +204,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		DatabaseDSN:     dbDSN,
 		Key:             key,
 		CryptoKey:       cryptoKey,
+		TrustedSubnet:   trustedSubnet,
 	}
 	return cfg
 }
@@ -229,6 +236,7 @@ func LoadServerConfigFromFile(filename string) (ServerConfig, error) {
 		DatabaseDSN     string `json:"database_dsn"`
 		Key             string `json:"key"`
 		CryptoKey       string `json:"crypto_key"`
+		TrustedSubnet   string `json:"trusted_subnet"`
 	}
 
 	var temp tempServerConfig
@@ -254,6 +262,7 @@ func LoadServerConfigFromFile(filename string) (ServerConfig, error) {
 	config.DatabaseDSN = temp.DatabaseDSN
 	config.Key = temp.Key
 	config.CryptoKey = cryptoKey
+	config.TrustedSubnet = temp.TrustedSubnet
 
 	return config, nil
 }
