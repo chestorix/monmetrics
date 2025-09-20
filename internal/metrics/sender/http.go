@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -23,6 +24,7 @@ type HTTPSender struct {
 	publicKey   *rsa.PublicKey
 	client      *http.Client
 	logger      *logrus.Logger
+	clientIP    string
 }
 
 func NewHTTPSender(baseURL string, key string, cryptoKey string, logger *logrus.Logger) *HTTPSender {
@@ -35,6 +37,7 @@ func NewHTTPSender(baseURL string, key string, cryptoKey string, logger *logrus.
 			logger.Infof("Failed to load public key: %v", err)
 		}
 	}
+	clientIP := getLocalIP()
 	return &HTTPSender{
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 5 * time.Second},
@@ -42,6 +45,7 @@ func NewHTTPSender(baseURL string, key string, cryptoKey string, logger *logrus.
 		publicKey:   publicKey,
 		key:         key,
 		logger:      logger,
+		clientIP:    clientIP,
 	}
 }
 
@@ -50,13 +54,15 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 	return utils.Retry(3, s.retryDelays, func() error {
 		url := fmt.Sprintf("%s/update/%s/%s/%v", s.baseURL, metric.Type, metric.Name, metric.Value)
 
-		resp, err := s.client.Post(url, "text/plain", nil)
+		req, err := http.NewRequest("POST", url, nil)
 		if err != nil {
 			if utils.IsNetworkError(err) {
 				return err
 			}
 			return utils.ErrMaxRetriesExceeded
 		}
+		req.Header.Set("X-Real-IP", s.clientIP)
+		resp, err := s.client.Do(req)
 		defer resp.Body.Close()
 
 		if resp.StatusCode >= 500 {
@@ -118,7 +124,7 @@ func (s *HTTPSender) SendJSON(metric models.Metric) error {
 		if err != nil {
 			return utils.ErrMaxRetriesExceeded
 		}
-
+		req.Header.Set("X-Real-IP", s.clientIP)
 		req.Header.Set("Content-Type", contentType)
 
 		if s.publicKey != nil {
@@ -204,7 +210,8 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 			s.logger.Errorf("Request creation error: %v", err)
 			return utils.ErrMaxRetriesExceeded
 		}
-
+		req.Header.Set("X-Real-IP", s.clientIP)
+		s.logger.Infof("Setting X-Real-IP header: %s", s.clientIP)
 		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("Content-Encoding", "gzip")
 
@@ -255,4 +262,19 @@ func (s *HTTPSender) SendBatch(metrics []models.Metrics) error {
 		s.logger.Infof("SendBatch completed successfully")
 		return nil
 	})
+}
+
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return "127.0.0.1"
 }

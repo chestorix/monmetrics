@@ -3,6 +3,7 @@ package api
 
 import (
 	"crypto/rsa"
+	"github.com/chestorix/monmetrics/internal/config"
 	"net/http"
 	"net/http/pprof"
 
@@ -17,13 +18,14 @@ type Router struct {
 	logger *logrus.Logger
 }
 
-func NewRouter(logger *logrus.Logger, privateKey *rsa.PrivateKey) *Router {
+func NewRouter(cfg *config.ServerConfig, logger *logrus.Logger, privateKey *rsa.PrivateKey) *Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware2.NewLoggerMiddleware(logger))
 	r.Use(middleware.Recoverer)
+	r.Use(middleware2.TrustedSubnetMiddleware(cfg.TrustedSubnet, logger))
 	r.Use(middleware2.GzipDecryptMiddleware(privateKey, logger))
 
 	return &Router{

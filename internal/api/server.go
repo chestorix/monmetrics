@@ -32,7 +32,7 @@ func NewServer(cfg *config.ServerConfig, metricService interfaces.Service, logge
 			logger.Errorf("Error loading private key: %v", err)
 		}
 	}
-	router := NewRouter(logger, privateKey)
+	router := NewRouter(cfg, logger, privateKey)
 	return &Server{
 		cfg:        cfg,
 		service:    metricService,
