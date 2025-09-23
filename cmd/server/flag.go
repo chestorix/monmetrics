@@ -9,6 +9,10 @@ var (
 	flagRestore         bool
 	flagConnDB          string
 	flagKey             string
+	flagCryptoKey       string
+	flagConfigFile      string
+	flagTrustedSubnet   string
+	flagGRPCAddr        string
 )
 
 func parseFlags() {
@@ -18,5 +22,10 @@ func parseFlags() {
 	flag.BoolVar(&flagRestore, "r", true, "whether to restore metrics from file on startup")
 	flag.StringVar(&flagConnDB, "d", "", "host=<host> user=<user> password=<password> dbname=<dbname> sslmode=<disable/enable>")
 	flag.StringVar(&flagKey, "k", "", "secret key")
+	flag.StringVar(&flagCryptoKey, "crypto-key", "", "path to file private key")
+	flag.StringVar(&flagConfigFile, "c", "", "path to config file")
+	flag.StringVar(&flagConfigFile, "config", "", "path to config file")
+	flag.StringVar(&flagTrustedSubnet, "t", "", "trusted subnet")
+	flag.StringVar(&flagGRPCAddr, "grpc-addr", ":8090", "gRPC address and port to run server")
 	flag.Parse()
 }
