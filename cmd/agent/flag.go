@@ -10,6 +10,8 @@ var (
 	flagRateLimit      int
 	flagCryptoKey      string
 	flagConfigFile     string
+	flagGRPCAddr       string
+	flagUseGRPC        bool
 )
 
 func parseFlags() {
@@ -21,6 +23,8 @@ func parseFlags() {
 	flag.StringVar(&flagCryptoKey, "crypto-key", "", "path to file private key")
 	flag.StringVar(&flagConfigFile, "c", "", "path to config file")
 	flag.StringVar(&flagConfigFile, "config", "", "path to config file")
+	flag.StringVar(&flagGRPCAddr, "grpc-addr", "localhost:8090", "gRPC server address")
+	flag.BoolVar(&flagUseGRPC, "grpc", false, "use gRPC instead of HTTP")
 	flag.Parse()
 
 }

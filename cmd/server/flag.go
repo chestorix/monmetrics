@@ -12,6 +12,7 @@ var (
 	flagCryptoKey       string
 	flagConfigFile      string
 	flagTrustedSubnet   string
+	flagGRPCAddr        string
 )
 
 func parseFlags() {
@@ -25,5 +26,6 @@ func parseFlags() {
 	flag.StringVar(&flagConfigFile, "c", "", "path to config file")
 	flag.StringVar(&flagConfigFile, "config", "", "path to config file")
 	flag.StringVar(&flagTrustedSubnet, "t", "", "trusted subnet")
+	flag.StringVar(&flagGRPCAddr, "grpc-addr", ":8090", "gRPC address and port to run server")
 	flag.Parse()
 }

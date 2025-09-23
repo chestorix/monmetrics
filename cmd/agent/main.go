@@ -39,6 +39,8 @@ func main() {
 		"flagPollInterval":   flagPollInterval,
 		"flagRateLimit":      flagRateLimit,
 		"flagCryptoKey":      flagCryptoKey,
+		"flagGRPCAddr":       flagGRPCAddr,
+		"flagUseGRPC":        flagUseGRPC,
 	}
 	logger = setupLogger()
 
@@ -60,6 +62,18 @@ func main() {
 	shutdownCtx := setupAgentGracefulShutdown(cancel)
 
 	agent := agent.NewAgent(agentCfg, logger)
+
+	if agentCfg.UseGRPC {
+		if err := agent.Connect(ctx); err != nil {
+			logger.WithError(err).Fatal("Failed to connect to gRPC server")
+		}
+		defer func() {
+			if err := agent.Sender.Close(); err != nil {
+				logger.WithError(err).Error("Failed to close gRPC connection")
+			}
+		}()
+	}
+
 	agentDone := make(chan error, 1)
 	var wg sync.WaitGroup
 	wg.Add(1)

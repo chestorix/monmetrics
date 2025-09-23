@@ -17,18 +17,35 @@ import (
 
 type Agent struct {
 	collector *collector.RuntimeCollector
-	sender    *sender.HTTPSender
+	Sender    sender.MetricSender
 	cfg       config.AgentConfig
 	logger    *logrus.Logger
 }
 
 func NewAgent(cfg config.AgentConfig, logger *logrus.Logger) *Agent {
+	var metricSender sender.MetricSender
+	if cfg.UseGRPC {
+		grpcSender := sender.NewGRPCSender(cfg.GRPCAddress, logger)
+		metricSender = grpcSender
+	} else {
+		metricSender = sender.NewHTTPSender(cfg.Address, cfg.Key, cfg.CryptoKey, logger)
+	}
+
 	return &Agent{
 		cfg:       cfg,
-		sender:    sender.NewHTTPSender(cfg.Address, cfg.Key, cfg.CryptoKey, logger),
+		Sender:    metricSender,
 		collector: collector.NewRuntimeCollector(),
 		logger:    logger,
 	}
+}
+
+func (a *Agent) Connect(ctx context.Context) error {
+	if grpcSender, ok := a.Sender.(interface {
+		Connect(ctx context.Context) error
+	}); ok {
+		return grpcSender.Connect(ctx)
+	}
+	return nil
 }
 
 func (a *Agent) Run(ctx context.Context, rateLimit int) error {
@@ -172,7 +189,7 @@ func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.
 		case <-sendTicker.C:
 			if len(metricsBuffer) > 0 {
 				a.logger.Infof("Sending %d metrics", len(metricsBuffer))
-				if err := a.sender.SendBatch(metricsBuffer); err != nil {
+				if err := a.Sender.SendBatch(metricsBuffer); err != nil {
 					a.logger.Infof("Send failed: %v", err)
 				} else {
 					a.logger.Infof("Send successful")
@@ -184,7 +201,7 @@ func (a *Agent) processMetrics(ctx context.Context, metricsChan <-chan []models.
 
 			if len(metricsBuffer) > 0 {
 				a.logger.Infof("Sending remaining %d metrics before shutdown", len(metricsBuffer))
-				if err := a.sender.SendBatch(metricsBuffer); err != nil {
+				if err := a.Sender.SendBatch(metricsBuffer); err != nil {
 					a.logger.Infof("Final send failed: %v", err)
 				} else {
 					a.logger.Info("Final send successful")

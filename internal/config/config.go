@@ -24,6 +24,7 @@ type ServerConfig struct {
 	StoreInterval   time.Duration `json:"store_interval"` // интервал сохранения метрик на диск (0 - синхронная запись)
 	Restore         bool          `json:"restore"`        // восстанавливать метрики из файла при старте
 	TrustedSubnet   string        `json:"trusted_subnet"` // указывает доверенные сети
+	GRPCAddress     string        `json:"grpc_address"`   // адрес для gRPC сервера
 }
 
 // AgentConfig содержит конфигурационные параметры агента.
@@ -34,6 +35,8 @@ type AgentConfig struct {
 	PollInterval   time.Duration `json:"poll_interval"`   // Интервал опроса метрик
 	ReportInterval time.Duration `json:"report_interval"` // Интервал отправки метрик
 	RateLimit      int
+	UseGRPC        bool   `json:"use_grpc"`     // использовать gRPC вместо HTTP
+	GRPCAddress    string `json:"grpc_address"` // адрес gRPC сервера
 }
 
 type CfgAgentENV struct {
@@ -44,6 +47,8 @@ type CfgAgentENV struct {
 	PollInterval   int    `env:"POLL_INTERVAL"`
 	RateLimit      int    `env:"RATE_LIMIT"`
 	ConfigFile     string `env:"CONFIG"`
+	UseGRPC        bool   `env:"USE_GRPC"`
+	GRPCAddress    string `env:"GRPC_ADDRESS"`
 }
 
 type CfgServerENV struct {
@@ -56,6 +61,7 @@ type CfgServerENV struct {
 	Restore         bool   `env:"RESTORE"`
 	ConfigFile      string `env:"CONFIG"`
 	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
+	GRPCAddress     string `env:"GRPC_ADDRESS"`
 }
 
 func ensureHTTP(address string) string {
@@ -86,11 +92,29 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 	flagPollInterval := getIntFromMap(mapFlags, "flagPollInterval")
 	flagRateLimit := getIntFromMap(mapFlags, "flagRateLimit")
 	flagCryptoKey := getStringFromMap(mapFlags, "flagCryptoKey")
+	flagGRPCAddr := getStringFromMap(mapFlags, "flagGRPCAddr")
+	flagUseGRPC := getBoolFromMap(mapFlags, "flagUseGRPC")
 
 	key := firstNonEmpty(flagKey, cfg.SecretKey, fileConfig.Key)
 
-	address := firstNonEmpty(flagRunAddr, cfg.Address, fileConfig.Address)
-	address = ensureHTTP(address)
+	useGRPC := flagUseGRPC
+	if !useGRPC {
+		useGRPC = cfg.UseGRPC
+	}
+	if !useGRPC {
+		useGRPC = fileConfig.UseGRPC
+	}
+
+	var address string
+	if useGRPC {
+		address = firstNonEmpty(flagGRPCAddr, cfg.GRPCAddress, fileConfig.GRPCAddress)
+		if address == "" {
+			address = "localhost:8090"
+		}
+	} else {
+		address = firstNonEmpty(flagRunAddr, cfg.Address, fileConfig.Address)
+		address = ensureHTTP(address)
+	}
 
 	reportInterval := firstNonZeroDuration(
 		fileConfig.ReportInterval,
@@ -120,8 +144,16 @@ func (cfg *CfgAgentENV) ApplyFlags(mapFlags map[string]any) AgentConfig {
 		fileConfig.CryptoKey,
 	)
 
+	grpcAddress := firstNonEmpty(
+		flagGRPCAddr,
+		cfg.GRPCAddress,
+		fileConfig.GRPCAddress,
+	)
+
 	agentCfg := AgentConfig{
 		Address:        address,
+		GRPCAddress:    grpcAddress,
+		UseGRPC:        useGRPC,
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
 		Key:            key,
@@ -153,9 +185,11 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 	flagDatabaseDSN := getStringFromMap(mapFlags, "flagDatabaseDSN")
 	flagCryptoKey := getStringFromMap(mapFlags, "flagCryptoKey")
 	flagTrustedSubnet := getStringFromMap(mapFlags, "flagTrustedSubnet")
+	flagGRPCAddr := getStringFromMap(mapFlags, "flagGRPCAddr")
 
 	key := firstNonEmpty(flagKey, conf.SecretKey, fileConfig.Key)
 	serverAddress := firstNonEmpty(flagRunAddr, conf.Address, fileConfig.Address)
+	grpcAddress := firstNonEmpty(flagGRPCAddr, conf.GRPCAddress, fileConfig.GRPCAddress)
 
 	storeInterval := firstNonZeroDuration(
 		fileConfig.StoreInterval,
@@ -195,6 +229,11 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 	if serverAddress != "" && !strings.Contains(serverAddress, ":") {
 		serverAddress = ":" + serverAddress
 	}
+	if grpcAddress == "" {
+		grpcAddress = ":8090"
+	} else if !strings.Contains(grpcAddress, ":") {
+		grpcAddress = ":" + grpcAddress
+	}
 
 	cfg := ServerConfig{
 		Address:         serverAddress,
@@ -205,6 +244,7 @@ func (conf *CfgServerENV) ApplyFlags(mapFlags map[string]any) ServerConfig {
 		Key:             key,
 		CryptoKey:       cryptoKey,
 		TrustedSubnet:   trustedSubnet,
+		GRPCAddress:     grpcAddress,
 	}
 	return cfg
 }
@@ -230,6 +270,7 @@ func LoadServerConfigFromFile(filename string) (ServerConfig, error) {
 
 	type tempServerConfig struct {
 		Address         string `json:"address"`
+		GRPCAddress     string `json:"grpc_address"`
 		Restore         bool   `json:"restore"`
 		StoreInterval   string `json:"store_interval"`
 		FileStoragePath string `json:"store_file"`
@@ -256,6 +297,7 @@ func LoadServerConfigFromFile(filename string) (ServerConfig, error) {
 	cryptoKey := resolveRelativePath(temp.CryptoKey, configDir)
 
 	config.Address = temp.Address
+	config.GRPCAddress = temp.GRPCAddress
 	config.Restore = temp.Restore
 	config.StoreInterval = storeInterval
 	config.FileStoragePath = fileStoragePath
@@ -288,6 +330,8 @@ func LoadAgentConfigFromFile(filename string) (AgentConfig, error) {
 
 	type tempAgentConfig struct {
 		Address        string `json:"address"`
+		GRPCAddress    string `json:"grpc_address"`
+		UseGRPC        bool   `json:"use_grpc"`
 		ReportInterval string `json:"report_interval"`
 		PollInterval   string `json:"poll_interval"`
 		Key            string `json:"key"`
@@ -318,6 +362,8 @@ func LoadAgentConfigFromFile(filename string) (AgentConfig, error) {
 	cryptoKey := resolveRelativePath(temp.CryptoKey, configDir)
 
 	config.Address = temp.Address
+	config.GRPCAddress = temp.GRPCAddress
+	config.UseGRPC = temp.UseGRPC
 	config.ReportInterval = reportInterval
 	config.PollInterval = pollInterval
 	config.Key = temp.Key

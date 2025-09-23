@@ -57,5 +57,8 @@ func (s *Server) Start() error {
 
 }
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	if s.server != nil {
+		return s.server.Shutdown(ctx)
+	}
+	return nil
 }

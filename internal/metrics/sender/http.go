@@ -278,3 +278,8 @@ func getLocalIP() string {
 	}
 	return "127.0.0.1"
 }
+
+func (s *HTTPSender) Close() error {
+
+	return nil
+}
