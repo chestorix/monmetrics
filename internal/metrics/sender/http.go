@@ -63,6 +63,12 @@ func (s *HTTPSender) Send(metric models.Metric) error {
 		}
 		req.Header.Set("X-Real-IP", s.clientIP)
 		resp, err := s.client.Do(req)
+		if err != nil {
+			if utils.IsNetworkError(err) {
+				return err
+			}
+			return utils.ErrMaxRetriesExceeded
+		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode >= 500 {

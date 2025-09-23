@@ -30,17 +30,21 @@ func NewGRPCSender(baseURL string, logger *logrus.Logger) *GRPCSender {
 
 func (g *GRPCSender) Connect(ctx context.Context) error {
 	return utils.Retry(3, g.retryDelays, func() error {
-		conn, err := grpc.DialContext(ctx, g.baseURL,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-			grpc.WithTimeout(5*time.Second),
-		)
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		conn, err := grpc.NewClient(g.baseURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return err
 		}
 		g.conn = conn
 		g.client = proto.NewMetricsServiceClient(conn)
-		return nil
+
+		healthCtx, healthCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer healthCancel()
+
+		_, err = g.client.Ping(healthCtx, &proto.PingRequest{})
+		return err
 	})
 }
 
